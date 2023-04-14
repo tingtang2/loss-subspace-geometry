@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-
-import torch
 from pathlib import Path
 from typing import List, Union
+
+import torch
 
 
 class BaseTrainer(ABC):
@@ -36,23 +36,15 @@ class BaseTrainer(ABC):
             setattr(self, key, item)
 
     @abstractmethod
-    def create_pretraining_dataloaders(self):
-        pass
-
-    @abstractmethod
-    def create_finetuning_dataloaders(self):
-        pass
-
-    @abstractmethod
-    def pretrain(self):
-        pass
-
-    @abstractmethod
-    def finetune(self):
+    def train_epoch(self):
         pass
 
     @abstractmethod
     def eval(self):
+        pass
+
+    @abstractmethod
+    def run_experiment(self):
         pass
 
     def save_model(self, name: str):

@@ -1,3 +1,4 @@
-torch == 1.9.1
+torch
+torch-vision
 tqdm
 scikit-learn

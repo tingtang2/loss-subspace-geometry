@@ -1,8 +1,8 @@
 # implementation from https://github.com/vaseline555/SuPerFed/blob/main/src/models/layers.py
 
+import torch
 from torch import nn
 from torch.nn import functional as F
-import torch
 
 
 # Linear layer implementation

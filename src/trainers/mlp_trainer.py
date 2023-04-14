@@ -5,5 +5,5 @@ class MLPTrainer(BaseTrainer):
     pass
 
 
-class MNISTMLPTrainer(MLPTrainer):
+class FashionMNISTMLPTrainer(MLPTrainer):
     pass
