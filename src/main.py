@@ -1,13 +1,13 @@
 import argparse
+import logging
 import sys
-
-import torch
-from torch.optim import Adam, AdamW
-from torch import nn
 from datetime import date
 
+import torch
+from torch import nn
+from torch.optim import Adam, AdamW
+
 from trainers.mlp_trainer import FashionMNISTMLPTrainer
-import logging
 
 arg_trainer_map = {'f_mnist_mlp': FashionMNISTMLPTrainer}
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
