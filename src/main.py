@@ -37,6 +37,9 @@ def main() -> int:
     parser.add_argument('--save_dir',
                         default='/home/tingchen/learning_subspace_save/',
                         help='path to saved model files')
+    parser.add_argument('--data_dir',
+                        default='/home/tingchen/data/',
+                        help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',
                         help='type of optimizer to use')
