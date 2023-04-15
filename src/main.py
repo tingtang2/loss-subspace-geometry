@@ -10,7 +10,7 @@ from torch.optim import Adam, AdamW
 from trainers.mlp_trainer import FashionMNISTMLPTrainer
 
 arg_trainer_map = {'f_mnist_mlp': FashionMNISTMLPTrainer}
-arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
+arg_optimizer_map = {'adamW': AdamW, 'adam': Adam}
 
 
 def main() -> int:
@@ -34,11 +34,12 @@ def main() -> int:
                         default=0.5,
                         type=float,
                         help='probability for dropout layers')
-    parser.add_argument('--save_dir',
-                        default='/home/tingchen/learning_subspace_save/',
-                        help='path to saved model files')
+    parser.add_argument(
+        '--save_dir',
+        default='/gpfs/commons/home/tchen/loss-subspace-geometry-save/',
+        help='path to saved model files')
     parser.add_argument('--data_dir',
-                        default='/home/tingchen/data/',
+                        default='/gpfs/commons/home/tchen/data/',
                         help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',
@@ -73,7 +74,7 @@ def main() -> int:
     torch.manual_seed(configs['seed'])
 
     # set up logging
-    filename = f'{configs["model_type"]}-{date.today()}'
+    filename = f'{configs["trainer_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
     logging.basicConfig(level=logging.INFO,
                         filename=f'{configs["save_dir"]}logs/{filename}.log',
@@ -82,7 +83,7 @@ def main() -> int:
     logging.info(configs)
 
     # get trainer
-    trainer_type = arg_trainer_map[configs['model_type']]
+    trainer_type = arg_trainer_map[configs['trainer_type']]
     trainer = trainer_type(
         optimizer_type=arg_optimizer_map[configs['optimizer']],
         criterion=nn.CrossEntropyLoss(),
