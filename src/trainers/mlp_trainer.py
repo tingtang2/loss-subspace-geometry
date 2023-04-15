@@ -4,9 +4,22 @@ import torchvision.transforms as transforms
 
 from trainers.base_trainer import BaseTrainer
 
+from models.mlp import MLP
+
 
 class MLPTrainer(BaseTrainer):
-    pass
+
+    def __init__(self, dropout_prob, **kwargs) -> None:
+        super().__init__(dropout_prob=dropout_prob, **kwargs)
+
+        self.model = MLP(dropout=dropout_prob).to(self.device)
+
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate)
+
+        self.name = 'vanilla_mlp'
+
+        self.early_stopping_threshold = 10
 
 
 class FashionMNISTMLPTrainer(MLPTrainer):

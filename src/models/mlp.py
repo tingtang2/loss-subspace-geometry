@@ -18,3 +18,17 @@ class MLP(nn.Module):
         x = self.dropout(x)
 
         return x
+
+
+class NN(nn.Module):
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.mlp = MLP()
+        self.out = nn.Linear()
+
+    def forward(self, x):
+        x = self.mlp(x)
+
+        return self.out(x)
