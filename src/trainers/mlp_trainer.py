@@ -52,6 +52,14 @@ class MLPTrainer(BaseTrainer):
     def run_experiment(self):
         self.create_dataloaders()
 
+        self.model = NN(input_dim=self.data_dim,
+                        hidden_dim=self.hidden_size,
+                        out_dim=self.out_dim,
+                        dropout_prob=self.dropout_prob).to(self.device)
+
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate)
+
         training_loss = []
         val_loss = []
         training_accuracy = []
@@ -84,19 +92,14 @@ class MLPTrainer(BaseTrainer):
 
 class FashionMNISTMLPTrainer(MLPTrainer):
 
-    def __init__(self, dropout_prob, **kwargs) -> None:
-        super().__init__(dropout_prob=dropout_prob, **kwargs)
-
-        self.model = NN(input_dim=784,
-                        hidden_dim=self.hidden_size,
-                        out_dim=10,
-                        dropout_prob=dropout_prob).to(self.device)
-
-        self.optimizer = self.optimizer_type(self.model.parameters(),
-                                             lr=self.learning_rate)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
         self.name = 'vanilla_mlp'
         self.early_stopping_threshold = 10
+
+        self.data_dim = 784
+        self.out_dim = 10
 
     def create_dataloaders(self):
         transform = transforms.Compose([transforms.ToTensor()])
