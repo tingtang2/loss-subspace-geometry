@@ -1,28 +1,102 @@
+import logging
+
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from tqdm import trange
 
+from models.mlp import NN
 from trainers.base_trainer import BaseTrainer
-
-from models.mlp import MLP
 
 
 class MLPTrainer(BaseTrainer):
 
+    def train_epoch(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            self.optimizer.zero_grad()
+
+            reshaped_x = x.reshape(x.size(0), 784)
+
+            y_hat = self.model(reshaped_x.to(self.device))
+            loss = self.criterion(y_hat, y.to(self.device))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / len(loader.dataset)
+
+    def eval(self, loader: DataLoader):
+        num_right = 0
+        running_loss = 0.0
+
+        self.model.eval()
+        with torch.no_grad():
+            for i, (x, y) in enumerate(loader):
+                reshaped_x = x.reshape(x.size(0), 784)
+                y_hat = self.model(reshaped_x.to(self.device))
+                num_right += torch.sum(
+                    y.to(self.device) == torch.argmax(
+                        y_hat, dim=-1)).detach().cpu().item()
+
+                running_loss += self.criterion(y_hat, y.to(self.device)).item()
+
+        return num_right / len(loader.dataset), (running_loss /
+                                                 len(loader.dataset))
+
+    def run_experiment(self):
+        self.create_dataloaders()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        best_val_loss = 1e+5
+        early_stopping_counter = 0
+
+        for i in trange(1, self.epochs + 1):
+            training_loss.append(self.train_epoch(self.train_loader))
+            training_accuracy.append(self.eval(self.train_loader)[0])
+
+            acc, loss = self.eval(self.valid_loader)
+            val_accuracy.append(acc)
+            val_loss.append(loss)
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}, patience: {early_stopping_counter}'
+            )
+
+            if loss < best_val_loss:
+                self.save_model(self.name)
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
+
+            if early_stopping_counter == self.early_stopping_threshold:
+                break
+
+
+class FashionMNISTMLPTrainer(MLPTrainer):
+
     def __init__(self, dropout_prob, **kwargs) -> None:
         super().__init__(dropout_prob=dropout_prob, **kwargs)
 
-        self.model = MLP(dropout=dropout_prob).to(self.device)
+        self.model = NN(input_dim=784,
+                        hidden_dim=self.hidden_size,
+                        out_dim=10,
+                        dropout_prob=dropout_prob).to(self.device)
 
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate)
 
         self.name = 'vanilla_mlp'
-
         self.early_stopping_threshold = 10
-
-
-class FashionMNISTMLPTrainer(MLPTrainer):
 
     def create_dataloaders(self):
         transform = transforms.Compose([transforms.ToTensor()])

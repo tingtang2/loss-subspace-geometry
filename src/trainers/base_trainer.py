@@ -47,5 +47,9 @@ class BaseTrainer(ABC):
     def run_experiment(self):
         pass
 
+    @abstractmethod
+    def create_dataloaders(self):
+        pass
+
     def save_model(self, name: str):
         torch.save(self.model.state_dict(), f'{self.save_dir}models/{name}.pt')

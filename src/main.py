@@ -86,7 +86,7 @@ def main() -> int:
     trainer_type = arg_trainer_map[configs['trainer_type']]
     trainer = trainer_type(
         optimizer_type=arg_optimizer_map[configs['optimizer']],
-        criterion=nn.CrossEntropyLoss(),
+        criterion=nn.CrossEntropyLoss(reduction='sum'),
         **configs)
 
     # perform experiment n times
