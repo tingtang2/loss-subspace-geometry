@@ -1,6 +1,7 @@
 import logging
 
 import torch
+from torch import nn
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
@@ -49,7 +50,7 @@ class MLPTrainer(BaseTrainer):
         return num_right / len(loader.dataset), (running_loss /
                                                  len(loader.dataset))
 
-    def run_experiment(self):
+    def run_experiment(self, iter: int):
         self.create_dataloaders()
 
         self.model = NN(input_dim=self.data_dim,
@@ -64,6 +65,8 @@ class MLPTrainer(BaseTrainer):
         val_loss = []
         training_accuracy = []
         val_accuracy = []
+        cos_sims = []
+        l2s = []
 
         best_val_loss = 1e+5
         early_stopping_counter = 0
@@ -72,6 +75,18 @@ class MLPTrainer(BaseTrainer):
             training_loss.append(self.train_epoch(self.train_loader))
             training_accuracy.append(self.eval(self.train_loader)[0])
 
+            # if 'subspace' in self.name:
+            #     val_loss, cos_sim, l2 = self.eval_epoch(val_loader)
+            #     l2s.append(l2)
+            #     cos_sims.append(cos_sim)
+            #     logging.info(
+            #         f"Epoch: {i}, Train loss: {train_loss:.3f}, Val loss alpha 0: {val_loss[0]:.3f}, Val loss alpha 0.5: {val_loss[1]:.3f}, Val loss alpha 1: {val_loss[2]:.3f}, "
+            #         f"Epoch time = {(end_time - start_time):.3f}s, cos sim: {cos_sim}, l2: {l2}"
+            #     )
+            #     if self.val_midpoint_only:
+            #         val_loss = val_loss[0]
+            #     else:
+            #         val_loss = val_loss[1]
             acc, loss = self.eval(self.valid_loader)
             val_accuracy.append(acc)
             val_loss.append(loss)
@@ -81,7 +96,7 @@ class MLPTrainer(BaseTrainer):
             )
 
             if loss < best_val_loss:
-                self.save_model(self.name)
+                self.save_model(f'{self.name}_{iter}')
                 early_stopping_counter = 0
             else:
                 early_stopping_counter += 1
@@ -112,3 +127,103 @@ class FashionMNISTMLPTrainer(MLPTrainer):
             train_set, batch_size=self.batch_size, shuffle=True)
         self.valid_loader = torch.utils.data.DataLoader(
             val_set, batch_size=len(val_set), shuffle=False)
+
+
+class SubspaceMLPTrainer(MLPTrainer):
+
+    def get_weight(self, m, i):
+        if i == 0:
+            return m.weight
+        return getattr(m, f'weight_{i}')
+
+    def train_epoch(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            alpha = torch.rand(1, device=self.device)
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    setattr(m, f'alpha', alpha)
+
+            self.optimizer.zero_grad()
+
+            reshaped_x = x.reshape(x.size(0), 784)
+
+            y_hat = self.model(reshaped_x.to(self.device))
+            loss = self.criterion(y_hat, y.to(self.device))
+
+            # regularization
+            num = 0.0
+            norm = 0.0
+            norm1 = 0.0
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    vi = self.get_weight(m, 0)
+                    vj = self.get_weight(m, 1)
+
+                    num += (vi * vj).sum()
+                    norm += vi.pow(2).sum()
+                    norm1 += vj.pow(2).sum()
+
+            loss += self.beta * (num.pow(2) / (norm * norm1))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / len(loader.dataset)
+
+    def eval(self, loader: DataLoader):
+        num_right = 0
+        running_loss = 0.0
+
+        running_losses = [0.0, 0.0, 0.0]
+        alphas = [0.0, 0.5, 1.0]
+        nums_right = []
+        if self.val_midpoint_only:
+            alphas = [0.5]
+
+        self.model.eval()
+
+        for i, alpha in enumerate(alphas):
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    setattr(m, f'alpha', alpha)
+
+            with torch.no_grad():
+                for j, (x, y) in enumerate(loader):
+                    reshaped_x = x.reshape(x.size(0), 784)
+                    y_hat = self.model(reshaped_x.to(self.device))
+                    nums_right[i] += torch.sum(
+                        y.to(self.device) == torch.argmax(
+                            y_hat, dim=-1)).detach().cpu().item()
+
+                    running_losses[i] += self.criterion(
+                        y_hat, y.to(self.device)).item()
+
+        # compute l2 and cos sim
+        num = 0.0
+        norm = 0.0
+        norm1 = 0.0
+
+        total_l2 = 0.0
+
+        for m in self.model.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
+                vi = self.get_weight(m, 0)
+                vj = self.get_weight(m, 1)
+
+                num += (vi * vj).sum()
+                norm += vi.pow(2).sum()
+                norm1 += vj.pow(2).sum()
+
+                total_l2 += (vi - vj).pow(2).sum()
+
+        total_cosim = num.pow(2) / (norm * norm1)
+        total_l2 = total_l2.sqrt()
+
+        return [num / len(loader.dataset) for num in nums_right
+                ], [loss / len(loader.dataset) for loss in running_losses
+                    ], total_cosim.item(), total_l2.item()

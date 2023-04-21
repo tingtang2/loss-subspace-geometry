@@ -36,11 +36,14 @@ def main() -> int:
                         help='probability for dropout layers')
     parser.add_argument(
         '--save_dir',
-        default='/gpfs/commons/home/tchen/loss-subspace-geometry-save/',
+        default=
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
         help='path to saved model files')
-    parser.add_argument('--data_dir',
-                        default='/gpfs/commons/home/tchen/data/',
-                        help='path to data files')
+    parser.add_argument(
+        '--data_dir',
+        default=
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
+        help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',
                         help='type of optimizer to use')
@@ -66,6 +69,12 @@ def main() -> int:
     parser.add_argument('--debug',
                         action='store_true',
                         help='move stuff to cpu for better tracebacks')
+    parser.add_argument(
+        '--val_midpoint_only',
+        action='store_true',
+        help=
+        'only collect validation metrics for the midpoint of the line (for speed)'
+    )
 
     args = parser.parse_args()
     configs = args.__dict__
@@ -91,7 +100,7 @@ def main() -> int:
 
     # perform experiment n times
     for iter in range(configs['num_repeats']):
-        trainer.run_experiment()
+        trainer.run_experiment(iter)
 
     return 0
 
