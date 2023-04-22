@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from tqdm import trange
 
-from models.mlp import NN
+from models.mlp import NN, SubspaceNN
 from trainers.base_trainer import BaseTrainer
 
 
@@ -53,10 +53,18 @@ class MLPTrainer(BaseTrainer):
     def run_experiment(self, iter: int):
         self.create_dataloaders()
 
-        self.model = NN(input_dim=self.data_dim,
-                        hidden_dim=self.hidden_size,
-                        out_dim=self.out_dim,
-                        dropout_prob=self.dropout_prob).to(self.device)
+        if 'subspace' in self.name:
+            self.model = SubspaceNN(input_dim=self.data_dim,
+                                    hidden_dim=self.hidden_size,
+                                    out_dim=self.out_dim,
+                                    dropout_prob=self.dropout_prob,
+                                    seed=self.seed).to(self.device)
+
+        else:
+            self.model = NN(input_dim=self.data_dim,
+                            hidden_dim=self.hidden_size,
+                            out_dim=self.out_dim,
+                            dropout_prob=self.dropout_prob).to(self.device)
 
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate)
@@ -73,31 +81,43 @@ class MLPTrainer(BaseTrainer):
 
         for i in trange(1, self.epochs + 1):
             training_loss.append(self.train_epoch(self.train_loader))
-            training_accuracy.append(self.eval(self.train_loader)[0])
+            if 'subspace' in self.name:
+                if self.val_midpoint_only:
+                    idx = 0
+                else:
+                    idx = 1
 
-            # if 'subspace' in self.name:
-            #     val_loss, cos_sim, l2 = self.eval_epoch(val_loader)
-            #     l2s.append(l2)
-            #     cos_sims.append(cos_sim)
-            #     logging.info(
-            #         f"Epoch: {i}, Train loss: {train_loss:.3f}, Val loss alpha 0: {val_loss[0]:.3f}, Val loss alpha 0.5: {val_loss[1]:.3f}, Val loss alpha 1: {val_loss[2]:.3f}, "
-            #         f"Epoch time = {(end_time - start_time):.3f}s, cos sim: {cos_sim}, l2: {l2}"
-            #     )
-            #     if self.val_midpoint_only:
-            #         val_loss = val_loss[0]
-            #     else:
-            #         val_loss = val_loss[1]
-            acc, loss = self.eval(self.valid_loader)
-            val_accuracy.append(acc)
-            val_loss.append(loss)
+                training_accuracy.append(self.eval(self.train_loader)[0][idx])
+                accuracy, loss, cos_sim, l2 = self.eval(self.valid_loader)
 
-            logging.info(
-                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}, patience: {early_stopping_counter}'
-            )
+                l2s.append(l2)
+                cos_sims.append(cos_sim)
+
+                if self.val_midpoint_only:
+                    logging.info(
+                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{loss[0]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {accuracy[0]:.3f}, patience: {early_stopping_counter}'
+                        f'cos sim: {cos_sim}, l2: {l2}')
+                else:
+                    logging.info(
+                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss alpha 0: {loss[0]:.3f} val loss alpha 0.5: {loss[1]:.3f} val loss alpha 1: {loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} '
+                        f'val acc 0: {accuracy[0]:.3f}, val acc 0.5: {accuracy[1]:.3f}, val acc 1: {accuracy[-1]:.3f}, patience: {early_stopping_counter} cos sim: {cos_sim:.3E}, l2: {l2:.3f}'
+                    )
+
+                loss = loss[idx]
+            else:
+                training_accuracy.append(self.eval(self.train_loader)[0])
+                acc, loss = self.eval(self.valid_loader)
+                val_accuracy.append(acc)
+                val_loss.append(loss)
+
+                logging.info(
+                    f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}, patience: {early_stopping_counter}'
+                )
 
             if loss < best_val_loss:
                 self.save_model(f'{self.name}_{iter}')
                 early_stopping_counter = 0
+                best_val_loss = loss
             else:
                 early_stopping_counter += 1
 
@@ -177,12 +197,10 @@ class SubspaceMLPTrainer(MLPTrainer):
         return running_loss / len(loader.dataset)
 
     def eval(self, loader: DataLoader):
-        num_right = 0
-        running_loss = 0.0
-
         running_losses = [0.0, 0.0, 0.0]
         alphas = [0.0, 0.5, 1.0]
-        nums_right = []
+        nums_right = [0, 0, 0]
+
         if self.val_midpoint_only:
             alphas = [0.5]
 
@@ -228,3 +246,27 @@ class SubspaceMLPTrainer(MLPTrainer):
         return [num / len(loader.dataset) for num in nums_right
                 ], [loss / len(loader.dataset) for loss in running_losses
                     ], total_cosim.item(), total_l2.item()
+
+
+class FashionMNISTSubspaceMLPTrainer(SubspaceMLPTrainer):
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+        self.name = 'subspace_vanilla_mlp'
+        self.early_stopping_threshold = 10
+
+        self.data_dim = 784
+        self.out_dim = 10
+
+    def create_dataloaders(self):
+        transform = transforms.Compose([transforms.ToTensor()])
+        FashionMNIST_data_train = torchvision.datasets.FashionMNIST(
+            self.data_dir, train=True, transform=transform, download=False)
+
+        train_set, val_set = torch.utils.data.random_split(
+            FashionMNIST_data_train, [50000, 10000])
+        self.train_loader = torch.utils.data.DataLoader(
+            train_set, batch_size=self.batch_size, shuffle=True)
+        self.valid_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=len(val_set), shuffle=False)
