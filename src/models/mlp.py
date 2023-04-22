@@ -1,6 +1,6 @@
 from torch import nn
 from torch.nn import functional as F
-from models.subspace_layers import SubspaceLinear
+from models.subspace_layers import LinesLinear
 
 
 class MLP(nn.Module):
@@ -37,10 +37,11 @@ class NN(nn.Module):
 
 class SubspaceMLP(nn.Module):
 
-    def __init__(self, n_in, n_out, dropout_prob=0.15):
+    def __init__(self, n_in, n_out, seed, dropout_prob=0.15):
         super().__init__()
 
-        self.linear = SubspaceLinear(n_in, n_out)
+        self.linear = LinesLinear(n_in, n_out)
+        self.linear.initialize(seed)
         self.dropout = nn.Dropout(p=dropout_prob)
 
     def forward(self, x):
@@ -53,13 +54,16 @@ class SubspaceMLP(nn.Module):
 
 class SubspaceNN(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, out_dim, dropout_prob) -> None:
+    def __init__(self, input_dim, hidden_dim, out_dim, dropout_prob,
+                 seed) -> None:
         super().__init__()
 
         self.mlp = SubspaceMLP(n_in=input_dim,
                                n_out=hidden_dim,
-                               dropout_prob=dropout_prob)
-        self.out = SubspaceLinear(in_features=hidden_dim, out_features=out_dim)
+                               dropout_prob=dropout_prob,
+                               seed=seed)
+        self.out = LinesLinear(in_features=hidden_dim, out_features=out_dim)
+        self.out.initialize(seed)
 
     def forward(self, x):
         x = self.mlp(x)

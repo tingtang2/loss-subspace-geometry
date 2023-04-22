@@ -7,9 +7,12 @@ import torch
 from torch import nn
 from torch.optim import Adam, AdamW
 
-from trainers.mlp_trainer import FashionMNISTMLPTrainer
+from trainers.mlp_trainer import FashionMNISTMLPTrainer, FashionMNISTSubspaceMLPTrainer
 
-arg_trainer_map = {'f_mnist_mlp': FashionMNISTMLPTrainer}
+arg_trainer_map = {
+    'f_mnist_mlp': FashionMNISTMLPTrainer,
+    'f_mnist_subspace_mlp': FashionMNISTSubspaceMLPTrainer
+}
 arg_optimizer_map = {'adamW': AdamW, 'adam': Adam}
 
 
@@ -66,15 +69,16 @@ def main() -> int:
     parser.add_argument('--trainer_type',
                         default='f_mnist_mlp',
                         help='type of experiment to run')
-    parser.add_argument('--debug',
-                        action='store_true',
-                        help='move stuff to cpu for better tracebacks')
     parser.add_argument(
         '--val_midpoint_only',
         action='store_true',
         help=
         'only collect validation metrics for the midpoint of the line (for speed)'
     )
+    parser.add_argument('--beta',
+                        default=1.0,
+                        type=float,
+                        help='constant for learning subspaces')
 
     args = parser.parse_args()
     configs = args.__dict__
