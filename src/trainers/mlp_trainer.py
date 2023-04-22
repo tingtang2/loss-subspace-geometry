@@ -144,6 +144,7 @@ class SubspaceMLPTrainer(MLPTrainer):
             alpha = torch.rand(1, device=self.device)
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
+                    # add attribute for weight dimensionality and subspace dimensionality
                     setattr(m, f'alpha', alpha)
 
             self.optimizer.zero_grad()
