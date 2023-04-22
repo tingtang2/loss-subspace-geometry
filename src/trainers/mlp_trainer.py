@@ -99,8 +99,8 @@ class MLPTrainer(BaseTrainer):
                         f'cos sim: {cos_sim}, l2: {l2}')
                 else:
                     logging.info(
-                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss alpha 0:{loss[0]:.3f} val loss alpha 0.5: {loss[1]:.3f} val loss alpha 1: {loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} '
-                        f'val acc 0: {accuracy[0]:.3f}, val acc 0.5: {accuracy[1]:.3f}, val acc 1: {accuracy[-1]:.3f}, patience: {early_stopping_counter} cos sim: {cos_sim:.3f}, l2: {l2:.3f}'
+                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss alpha 0: {loss[0]:.3f} val loss alpha 0.5: {loss[1]:.3f} val loss alpha 1: {loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} '
+                        f'val acc 0: {accuracy[0]:.3f}, val acc 0.5: {accuracy[1]:.3f}, val acc 1: {accuracy[-1]:.3f}, patience: {early_stopping_counter} cos sim: {cos_sim:.3E}, l2: {l2:.3f}'
                     )
 
                 loss = loss[idx]
