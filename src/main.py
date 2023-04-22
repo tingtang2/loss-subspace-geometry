@@ -34,7 +34,7 @@ def main() -> int:
                         type=int,
                         help='mini-batch size used to train model')
     parser.add_argument('--dropout_prob',
-                        default=0.5,
+                        default=0.3,
                         type=float,
                         help='probability for dropout layers')
     parser.add_argument(
