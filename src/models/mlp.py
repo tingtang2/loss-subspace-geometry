@@ -1,7 +1,6 @@
 from torch import nn
 from torch.nn import functional as F
-from models.subspace_layers import SubspaceLinear
-from models.subspace_layers import SubspaceNonLinear
+from models.subspace_layers import SubspaceNonLinear, LinesLinear
 
 
 class MLP(nn.Module):
