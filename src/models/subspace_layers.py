@@ -15,6 +15,7 @@ class SubspaceLinear(nn.Linear):
         return x
 
 
+# TODO: add bias weight and retrain
 class TwoParamLinear(SubspaceLinear):
 
     def __init__(self, *args, **kwargs):
