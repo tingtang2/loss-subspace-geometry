@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from tqdm import trange
 
-from models.mlp import NN, SubspaceNN
+from models.mlp import NN, SubspaceNN, NonLinearSubspaceNN
 from trainers.base_trainer import BaseTrainer
 
 
@@ -52,6 +52,13 @@ class MLPTrainer(BaseTrainer):
 
     def run_experiment(self, iter: int):
         self.create_dataloaders()
+
+        if 'subspace' in self.name and 'nonlinear' in self.name:
+            self.model = NonLinearSubspaceNN(input_dim=self.data_dim,
+                                    hidden_dim=self.hidden_size,
+                                    out_dim=self.out_dim,
+                                    dropout_prob=self.dropout_prob,
+                                    seed=self.seed).to(self.device)
 
         if 'subspace' in self.name:
             self.model = SubspaceNN(input_dim=self.data_dim,
@@ -376,7 +383,7 @@ class FashionMNISTNonLinearSubspaceMLPTrainer(SubspaceMLPTrainer):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self.name = 'nonlienar_subspace_vanilla_mlp'
+        self.name = 'nonlinear_subspace_vanilla_mlp'
         self.early_stopping_threshold = 10
 
         self.data_dim = 784

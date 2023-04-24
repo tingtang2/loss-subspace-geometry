@@ -103,7 +103,7 @@ class NonLinearSubspaceNN(nn.Module):
                  seed) -> None:
         super().__init__()
 
-        self.mlp = SubspaceMLP(n_in=input_dim,
+        self.mlp = NonLinearSubspaceMLP(n_in=input_dim,
                                n_out=hidden_dim,
                                dropout_prob=dropout_prob,
                                seed=seed)
