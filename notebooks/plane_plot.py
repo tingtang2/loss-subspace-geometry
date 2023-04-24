@@ -18,7 +18,7 @@ args = parser.parse_args()
 file = np.load(os.path.join(args.dir, 'plane.npz'))
 
 matplotlib.rc('text', usetex=True)
-matplotlib.rc('text.latex', preamble=[r'\usepackage{sansmath}', r'\sansmath'])
+plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
 matplotlib.rc('font', **{
     'family': 'sans-serif',
     'sans-serif': ['DejaVu Sans']
@@ -125,7 +125,7 @@ colorbar.ax.tick_params(labelsize=18)
 plt.savefig(os.path.join(args.dir, 'train_loss_plane.pdf'),
             format='pdf',
             bbox_inches='tight')
-plt.show()
+# plt.show()
 
 plt.figure(figsize=(12.4, 7))
 
@@ -171,4 +171,4 @@ colorbar.ax.tick_params(labelsize=18)
 plt.savefig(os.path.join(args.dir, 'test_error_plane.pdf'),
             format='pdf',
             bbox_inches='tight')
-plt.show()
+# plt.show()
