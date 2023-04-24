@@ -48,7 +48,7 @@ class SubspaceNonLinear(nn.Linear):
         return x
 
 
-class ParamNonLinear(SubspaceNonLinear):
+class TwoParamNonLinear(SubspaceNonLinear):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -62,25 +62,28 @@ class ParamNonLinear(SubspaceNonLinear):
             torch.nn.init.xavier_normal_(self.weight_1)
 
 
+class LinesNN(TwoParamNonLinear):
+
+    def __init__(self):
+        self.line = ParameterizedSubspace(n_in=1,
+                                          n_out=self.weight.size(dim=0))
+
+    def get_weight(self):
+        w = self.line.forward(self.alpha)
+        return w
+
+
 # Neural net parameterization for the 1-D loss subspace
 class ParameterizedSubspace(nn.Module):
 
     def __init__(self, n_in, n_out):
         super().__init__()
-        self.linear = nn.Linear(n_in, n_out)
+        self.linear_1 = nn.Linear(n_in, n_out/2)
+        self.linear_2 = nn.Linear(n_out/2, n_out)
 
     def forward(self, x):
-        x = self.linear(x)
+        x = self.linear_1(x)
+        x = F.relu(x)
+        x = self.linear_2(x)
         x = F.relu(x)
         return x
-
-
-class NonLinear(ParamNonLinear):
-
-    def __init__(self):
-        self.line = ParameterizedSubspace(n_in=self.subspace_dimensionality,
-                                          n_out=self.weight_dimensionality)
-
-    def get_weight(self):
-        w = self.line.forward(self.alpha)
-        return w

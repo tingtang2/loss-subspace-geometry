@@ -270,3 +270,126 @@ class FashionMNISTSubspaceMLPTrainer(SubspaceMLPTrainer):
             train_set, batch_size=self.batch_size, shuffle=True)
         self.valid_loader = torch.utils.data.DataLoader(
             val_set, batch_size=len(val_set), shuffle=False)
+
+        
+class NonLinearSubspaceMLPTrainer(MLPTrainer):
+
+    def get_weight(self, m, i):
+        if i == 0:
+            return m.weight
+        return getattr(m, f'weight_{i}')
+
+    def train_epoch(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            alpha = torch.rand(1, device=self.device)
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    # add attribute for weight dimensionality and subspace dimensionality
+                    setattr(m, f'alpha', alpha)
+
+            self.optimizer.zero_grad()
+
+            reshaped_x = x.reshape(x.size(0), 784)
+
+            y_hat = self.model(reshaped_x.to(self.device))
+            loss = self.criterion(y_hat, y.to(self.device))
+
+            # regularization
+            num = 0.0
+            norm = 0.0
+            norm1 = 0.0
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    vi = self.get_weight(m, 0)
+                    vj = self.get_weight(m, 1)
+
+                    num += (vi * vj).sum()
+                    norm += vi.pow(2).sum()
+                    norm1 += vj.pow(2).sum()
+
+            loss += self.beta * (num.pow(2) / (norm * norm1))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / len(loader.dataset)
+
+    def eval(self, loader: DataLoader):
+        running_losses = [0.0, 0.0, 0.0]
+        alphas = [0.0, 0.5, 1.0]
+        nums_right = [0, 0, 0]
+
+        if self.val_midpoint_only:
+            alphas = [0.5]
+
+        self.model.eval()
+
+        for i, alpha in enumerate(alphas):
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    setattr(m, f'alpha', alpha)
+
+            with torch.no_grad():
+                for j, (x, y) in enumerate(loader):
+                    reshaped_x = x.reshape(x.size(0), 784)
+                    y_hat = self.model(reshaped_x.to(self.device))
+                    nums_right[i] += torch.sum(
+                        y.to(self.device) == torch.argmax(
+                            y_hat, dim=-1)).detach().cpu().item()
+
+                    running_losses[i] += self.criterion(
+                        y_hat, y.to(self.device)).item()
+
+        # compute l2 and cos sim
+        num = 0.0
+        norm = 0.0
+        norm1 = 0.0
+
+        total_l2 = 0.0
+
+        for m in self.model.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
+                vi = self.get_weight(m, 0)
+                vj = self.get_weight(m, 1)
+
+                num += (vi * vj).sum()
+                norm += vi.pow(2).sum()
+                norm1 += vj.pow(2).sum()
+
+                total_l2 += (vi - vj).pow(2).sum()
+
+        total_cosim = num.pow(2) / (norm * norm1)
+        total_l2 = total_l2.sqrt()
+
+        return [num / len(loader.dataset) for num in nums_right
+                ], [loss / len(loader.dataset) for loss in running_losses
+                    ], total_cosim.item(), total_l2.item()
+    
+
+class FashionMNISTNonLinearSubspaceMLPTrainer(SubspaceMLPTrainer):
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+        self.name = 'nonlienar_subspace_vanilla_mlp'
+        self.early_stopping_threshold = 10
+
+        self.data_dim = 784
+        self.out_dim = 10
+
+    def create_dataloaders(self):
+        transform = transforms.Compose([transforms.ToTensor()])
+        FashionMNIST_data_train = torchvision.datasets.FashionMNIST(
+            self.data_dir, train=True, transform=transform, download=False)
+
+        train_set, val_set = torch.utils.data.random_split(
+            FashionMNIST_data_train, [50000, 10000])
+        self.train_loader = torch.utils.data.DataLoader(
+            train_set, batch_size=self.batch_size, shuffle=True)
+        self.valid_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=len(val_set), shuffle=False)
