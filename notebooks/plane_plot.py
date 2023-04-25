@@ -17,12 +17,12 @@ args = parser.parse_args()
 
 file = np.load(os.path.join(args.dir, 'plane.npz'))
 
-matplotlib.rc('text', usetex=True)
-plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
-matplotlib.rc('font', **{
-    'family': 'sans-serif',
-    'sans-serif': ['DejaVu Sans']
-})
+# matplotlib.rc('text', usetex=True)
+# plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
+# matplotlib.rc('font', **{
+#     'family': 'sans-serif',
+#     'sans-serif': ['DejaVu Sans']
+# })
 
 matplotlib.rc('xtick.major', pad=12)
 matplotlib.rc('ytick.major', pad=12)
