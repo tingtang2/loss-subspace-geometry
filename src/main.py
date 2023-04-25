@@ -6,8 +6,9 @@ from datetime import date
 import torch
 from torch import nn
 from torch.optim import Adam, AdamW
-
-from trainers.mlp_trainer import FashionMNISTMLPTrainer, FashionMNISTSubspaceMLPTrainer, FashionMNISTNonLinearSubspaceMLPTrainer
+from trainers.mlp_trainer import (FashionMNISTMLPTrainer,
+                                  FashionMNISTNonLinearSubspaceMLPTrainer,
+                                  FashionMNISTSubspaceMLPTrainer)
 
 arg_trainer_map = {
     'f_mnist_mlp': FashionMNISTMLPTrainer,

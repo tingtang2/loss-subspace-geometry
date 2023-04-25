@@ -4,3 +4,6 @@ tqdm
 tabulate
 matplotlib
 seaborn
+scikit-learn
+scipy
+scikit-dimension

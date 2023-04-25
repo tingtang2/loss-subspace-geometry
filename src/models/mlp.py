@@ -1,7 +1,6 @@
+from models.subspace_layers import LinesLinear, LinesNN
 from torch import nn
 from torch.nn import functional as F
-from models.subspace_layers import LinesLinear, LinesNN
-
 
 ## Standard MLP ##
 

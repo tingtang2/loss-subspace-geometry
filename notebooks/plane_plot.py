@@ -1,9 +1,10 @@
 import argparse
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 import os
+
+import matplotlib
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 
 parser = argparse.ArgumentParser(description='Plane visualization')
@@ -75,7 +76,11 @@ def plane(grid, values, vmax=None, log_alpha=-5, N=7, cmap='jet_r'):
                             zorder=0,
                             alpha=0.55)
     colorbar = plt.colorbar(format='%.2g')
-    labels = list(colorbar.ax.get_yticklabels())
+    label_numbers = colorbar.get_ticks()
+    labels = colorbar.ax.get_yticklabels()
+    for i, label in enumerate(labels):
+        label.set_text(f'{label_numbers[i]:.2f}')
+
     labels[-1].set_text(r'$>\,$' + labels[-2].get_text())
     colorbar.ax.set_yticklabels(labels)
     return contour, contourf, colorbar
