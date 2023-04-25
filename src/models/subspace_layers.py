@@ -43,7 +43,7 @@ class LinesLinear(TwoParamLinear):
 class SubspaceNonLinear(nn.Linear):
 
     def forward(self, x):
-        w = self.get_weight()
+        w = self.get_weight().reshape(self.weight.size())
         x = F.linear(input=x, weight=w, bias=self.bias)
         return x
 
@@ -53,7 +53,7 @@ class TwoParamNonLinear(SubspaceNonLinear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.line = ParameterizedSubspace(n_in=1,
-                                          n_out=self.weight.size(dim=0))
+                                          n_out=torch.numel(self.weight))
         self.weight_1 = nn.Parameter(torch.zeros_like(self.weight))
 
     def initialize(self, seed):
@@ -75,12 +75,12 @@ class ParameterizedSubspace(nn.Module):
 
     def __init__(self, n_in, n_out):
         super().__init__()
-        self.linear_1 = nn.Linear(n_in, n_out//2)
-        self.linear_2 = nn.Linear(n_out//2, n_out)
+        self.parameterization_linear_1 = nn.Linear(n_in, 10)
+        self.parameterization_linear_2 = nn.Linear(10, n_out)
 
     def forward(self, x):
-        x = self.linear_1(x)
+        x = self.parameterization_linear_1(x)
         x = F.relu(x)
-        x = self.linear_2(x)
+        x = self.parameterization_linear_2(x)
         x = F.relu(x)
         return x

@@ -54,13 +54,15 @@ class MLPTrainer(BaseTrainer):
         self.create_dataloaders()
 
         if 'subspace' in self.name and 'nonlinear' in self.name:
+            print("Fitting nonlinear subspace to loss landscape")
             self.model = NonLinearSubspaceNN(input_dim=self.data_dim,
                                     hidden_dim=self.hidden_size,
                                     out_dim=self.out_dim,
                                     dropout_prob=self.dropout_prob,
                                     seed=self.seed).to(self.device)
 
-        if 'subspace' in self.name:
+        elif 'subspace' in self.name:
+            print("Fitting linear subspace to loss landscape")
             self.model = SubspaceNN(input_dim=self.data_dim,
                                     hidden_dim=self.hidden_size,
                                     out_dim=self.out_dim,
@@ -185,8 +187,8 @@ class SubspaceMLPTrainer(MLPTrainer):
             num = 0.0
             norm = 0.0
             norm1 = 0.0
-            for m in self.model.modules():
-                if isinstance(m, nn.Linear):
+            for name, m in self.model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
                     vi = self.get_weight(m, 0)
                     vj = self.get_weight(m, 1)
 
@@ -216,7 +218,7 @@ class SubspaceMLPTrainer(MLPTrainer):
         for i, alpha in enumerate(alphas):
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
-                    setattr(m, f'alpha', alpha)
+                    setattr(m, f'alpha', torch.tensor([alpha], device=self.device))
 
             with torch.no_grad():
                 for j, (x, y) in enumerate(loader):
@@ -236,8 +238,9 @@ class SubspaceMLPTrainer(MLPTrainer):
 
         total_l2 = 0.0
 
-        for m in self.model.modules():
-            if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
+        for name, m in self.model.named_modules():
+            if (isinstance(m, nn.Linear) or isinstance(m, nn.Embedding)) and 'parameterization' not in name:
+
                 vi = self.get_weight(m, 0)
                 vj = self.get_weight(m, 1)
 
@@ -339,7 +342,7 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         for i, alpha in enumerate(alphas):
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
-                    setattr(m, f'alpha', alpha)
+                    setattr(m, f'alpha', torch.tensor([alpha]))
 
             with torch.no_grad():
                 for j, (x, y) in enumerate(loader):
