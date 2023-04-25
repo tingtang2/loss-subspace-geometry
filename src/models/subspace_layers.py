@@ -54,15 +54,6 @@ class TwoParamNonLinear(SubspaceNonLinear):
         super().__init__(*args, **kwargs)
         self.line = ParameterizedSubspace(n_in=1,
                                           n_out=torch.numel(self.weight))
-        self.weight_1 = nn.Parameter(torch.zeros_like(self.weight))
-
-    def initialize(self, seed):
-        if seed == -1:  # SCAFFOLD
-            torch.nn.init.zeros_(self.weight_1)
-        else:
-            torch.manual_seed(seed)
-            torch.nn.init.xavier_normal_(self.weight_1)
-
 
 class LinesNN(TwoParamNonLinear):
 

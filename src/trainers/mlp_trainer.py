@@ -285,9 +285,7 @@ class FashionMNISTSubspaceMLPTrainer(SubspaceMLPTrainer):
 class NonLinearSubspaceMLPTrainer(MLPTrainer):
 
     def get_weight(self, m, i):
-        if i == 0:
-            return m.weight
-        return getattr(m, f'weight_{i}')
+        return m.line.forward(torch.tensor([i], dtype=torch.float32, device=self.device))
 
     def train_epoch(self, loader: DataLoader):
         self.model.train()
@@ -295,8 +293,8 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
 
         for i, (x, y) in enumerate(loader):
             alpha = torch.rand(1, device=self.device)
-            for m in self.model.modules():
-                if isinstance(m, nn.Linear):
+            for name, m in self.model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
                     # add attribute for weight dimensionality and subspace dimensionality
                     setattr(m, f'alpha', alpha)
 
@@ -311,8 +309,8 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
             num = 0.0
             norm = 0.0
             norm1 = 0.0
-            for m in self.model.modules():
-                if isinstance(m, nn.Linear):
+            for name, m in self.model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
                     vi = self.get_weight(m, 0)
                     vj = self.get_weight(m, 1)
 
@@ -342,7 +340,7 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         for i, alpha in enumerate(alphas):
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
-                    setattr(m, f'alpha', torch.tensor([alpha]))
+                    setattr(m, f'alpha', torch.tensor([alpha], device=self.device))
 
             with torch.no_grad():
                 for j, (x, y) in enumerate(loader):
@@ -362,8 +360,8 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
 
         total_l2 = 0.0
 
-        for m in self.model.modules():
-            if isinstance(m, nn.Linear) or isinstance(m, nn.Embedding):
+        for name, m in self.model.named_modules():
+            if (isinstance(m, nn.Linear) or isinstance(m, nn.Embedding)) and 'parameterization' not in name:
                 vi = self.get_weight(m, 0)
                 vj = self.get_weight(m, 1)
 
@@ -381,7 +379,7 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
                     ], total_cosim.item(), total_l2.item()
     
 
-class FashionMNISTNonLinearSubspaceMLPTrainer(SubspaceMLPTrainer):
+class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

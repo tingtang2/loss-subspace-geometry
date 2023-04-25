@@ -86,7 +86,6 @@ class NonLinearSubspaceMLP(nn.Module):
         super().__init__()
 
         self.linear = LinesNN(n_in, n_out)
-        self.linear.initialize(seed)
         self.dropout = nn.Dropout(p=dropout_prob)
 
     def forward(self, x):
@@ -107,7 +106,6 @@ class NonLinearSubspaceNN(nn.Module):
                                dropout_prob=dropout_prob,
                                seed=seed)
         self.out = LinesNN(in_features=hidden_dim, out_features=out_dim)
-        self.out.initialize(seed)
 
     def forward(self, x):
         x = self.mlp(x)
