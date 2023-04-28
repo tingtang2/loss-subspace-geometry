@@ -2,11 +2,13 @@ import argparse
 import sys
 
 import numpy as np
+import skdim
 import torch
-from models.mlp import SubspaceNN
 from scipy.linalg import orth
 from sklearn.neighbors import NearestNeighbors
 from torch import nn
+
+from models.mlp import SubspaceNN
 
 
 def estimate_tangent_plane(X: np.ndarray, num_neighbors: int) -> int:
@@ -46,6 +48,14 @@ def main() -> int:
         '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/subspace_vanilla_mlp_0.pt',
         # '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
         help='path to saved model files')
+    parser.add_argument('--num_samples',
+                        default=200,
+                        type=int,
+                        help='number of samples from model subspace')
+    parser.add_argument(
+        '--estimation-type',
+        default='knn',
+        help='kind of estimation (dimensionality/curvature) to perform')
 
     args = parser.parse_args()
     configs = args.__dict__
@@ -67,18 +77,31 @@ def main() -> int:
     model.load_state_dict(checkpoint)
 
     # sample from line
-    sample_alphas = np.linspace(start=0, stop=1, num=100)
+    sample_alphas = np.linspace(start=0, stop=1, num=configs['num_samples'])
     sample_weights = []
 
     for alpha in sample_alphas:
         sample_weights.append(get_weights(model=model, alpha=alpha))
 
     k_s = [3, 5, 8, 13]
+    if configs['estimation_type'] == 'knn':
 
-    for k in k_s:
-        print(
-            estimate_tangent_plane(X=np.vstack(sample_weights),
-                                   num_neighbors=k))
+        for k in k_s:
+            print(
+                f'num: neighbors: {k}, dim estimate: {estimate_tangent_plane(X=np.vstack(sample_weights),num_neighbors=k)}'
+            )
+    elif configs['estimation_type'] == 'mle':
+
+        for k in k_s:
+            print(
+                f'num: neighbors: {k}, dim estimate: {skdim.id.MLE(K=k).fit_predict(np.vstack(sample_weights))}'
+            )
+    elif configs['estimation_type'] == 'skdim_knn':
+
+        for k in k_s:
+            print(
+                f'num: neighbors: {k}, dim estimate: {skdim.id.KNN(k=k).fit(np.vstack(sample_weights)).dimension_}'
+            )
 
     return 0
 
