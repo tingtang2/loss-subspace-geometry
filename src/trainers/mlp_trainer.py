@@ -1,13 +1,15 @@
 import logging
+import random
 
 import torch
-from torch import nn
 import torchvision
 import torchvision.transforms as transforms
+from models.mlp import NN, NonLinearSubspaceNN, SubspaceNN
+from torch import nn
+from torch.distributions.exponential import Exponential
 from torch.utils.data import DataLoader
 from tqdm import trange
 
-from models.mlp import NN, SubspaceNN, NonLinearSubspaceNN
 from trainers.base_trainer import BaseTrainer
 
 
@@ -56,18 +58,23 @@ class MLPTrainer(BaseTrainer):
         if 'subspace' in self.name and 'nonlinear' in self.name:
             print("Fitting nonlinear subspace to loss landscape")
             self.model = NonLinearSubspaceNN(input_dim=self.data_dim,
-                                    hidden_dim=self.hidden_size,
-                                    out_dim=self.out_dim,
-                                    dropout_prob=self.dropout_prob,
-                                    seed=self.seed).to(self.device)
+                                             hidden_dim=self.hidden_size,
+                                             out_dim=self.out_dim,
+                                             dropout_prob=self.dropout_prob,
+                                             seed=self.seed).to(self.device)
 
         elif 'subspace' in self.name:
             print("Fitting linear subspace to loss landscape")
+            if 'simplex' in self.name:
+                num_weights = 3
+            else:
+                num_weights = 2
             self.model = SubspaceNN(input_dim=self.data_dim,
                                     hidden_dim=self.hidden_size,
                                     out_dim=self.out_dim,
                                     dropout_prob=self.dropout_prob,
-                                    seed=self.seed).to(self.device)
+                                    seed=self.seed,
+                                    num_weights=num_weights).to(self.device)
 
         else:
             self.model = NN(input_dim=self.data_dim,
@@ -104,8 +111,8 @@ class MLPTrainer(BaseTrainer):
 
                 if self.val_midpoint_only:
                     logging.info(
-                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{loss[0]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {accuracy[0]:.3f}, patience: {early_stopping_counter}'
-                        f'cos sim: {cos_sim}, l2: {l2}')
+                        f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{loss[0]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {accuracy[0]:.3f}, patience: {early_stopping_counter} '
+                        f'cos sim: {cos_sim:.3E}, l2: {l2:.3f}')
                 else:
                     logging.info(
                         f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss alpha 0: {loss[0]:.3f} val loss alpha 0.5: {loss[1]:.3f} val loss alpha 1: {loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} '
@@ -218,7 +225,8 @@ class SubspaceMLPTrainer(MLPTrainer):
         for i, alpha in enumerate(alphas):
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
-                    setattr(m, f'alpha', torch.tensor([alpha], device=self.device))
+                    setattr(m, f'alpha',
+                            torch.tensor([alpha], device=self.device))
 
             with torch.no_grad():
                 for j, (x, y) in enumerate(loader):
@@ -239,7 +247,8 @@ class SubspaceMLPTrainer(MLPTrainer):
         total_l2 = 0.0
 
         for name, m in self.model.named_modules():
-            if (isinstance(m, nn.Linear) or isinstance(m, nn.Embedding)) and 'parameterization' not in name:
+            if (isinstance(m, nn.Linear) or isinstance(
+                    m, nn.Embedding)) and 'parameterization' not in name:
 
                 vi = self.get_weight(m, 0)
                 vj = self.get_weight(m, 1)
@@ -281,11 +290,12 @@ class FashionMNISTSubspaceMLPTrainer(SubspaceMLPTrainer):
         self.valid_loader = torch.utils.data.DataLoader(
             val_set, batch_size=len(val_set), shuffle=False)
 
-        
+
 class NonLinearSubspaceMLPTrainer(MLPTrainer):
 
     def get_weight(self, m, i):
-        return m.line.forward(torch.tensor([i], dtype=torch.float32, device=self.device))
+        return m.line.forward(
+            torch.tensor([i], dtype=torch.float32, device=self.device))
 
     def train_epoch(self, loader: DataLoader):
         self.model.train()
@@ -340,7 +350,8 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         for i, alpha in enumerate(alphas):
             for m in self.model.modules():
                 if isinstance(m, nn.Linear):
-                    setattr(m, f'alpha', torch.tensor([alpha], device=self.device))
+                    setattr(m, f'alpha',
+                            torch.tensor([alpha], device=self.device))
 
             with torch.no_grad():
                 for j, (x, y) in enumerate(loader):
@@ -361,7 +372,8 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         total_l2 = 0.0
 
         for name, m in self.model.named_modules():
-            if (isinstance(m, nn.Linear) or isinstance(m, nn.Embedding)) and 'parameterization' not in name:
+            if (isinstance(m, nn.Linear) or isinstance(
+                    m, nn.Embedding)) and 'parameterization' not in name:
                 vi = self.get_weight(m, 0)
                 vj = self.get_weight(m, 1)
 
@@ -377,7 +389,7 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         return [num / len(loader.dataset) for num in nums_right
                 ], [loss / len(loader.dataset) for loss in running_losses
                     ], total_cosim.item(), total_l2.item()
-    
+
 
 class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
 
@@ -385,6 +397,137 @@ class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
         super().__init__(**kwargs)
 
         self.name = 'nonlinear_subspace_vanilla_mlp'
+        self.early_stopping_threshold = 10
+
+        self.data_dim = 784
+        self.out_dim = 10
+
+    def create_dataloaders(self):
+        transform = transforms.Compose([transforms.ToTensor()])
+        FashionMNIST_data_train = torchvision.datasets.FashionMNIST(
+            self.data_dir, train=True, transform=transform, download=False)
+
+        train_set, val_set = torch.utils.data.random_split(
+            FashionMNIST_data_train, [50000, 10000])
+        self.train_loader = torch.utils.data.DataLoader(
+            train_set, batch_size=self.batch_size, shuffle=True)
+        self.valid_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=len(val_set), shuffle=False)
+
+
+class SimplexSubspaceMLPTrainer(MLPTrainer):
+
+    def get_weight(self, m, i):
+        if i == 0:
+            return m.weight
+        return getattr(m, f'weight_{i}')
+
+    def train_epoch(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            dist = Exponential(rate=1)
+            Z = dist.sample(sample_shape=(3, ))
+            Z = Z / Z.sum()
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    # add attribute for weight dimensionality and subspace dimensionality
+                    for i in range(1, 3):
+                        setattr(m, f't{i}', Z[i])
+
+            self.optimizer.zero_grad()
+
+            reshaped_x = x.reshape(x.size(0), 784)
+
+            y_hat = self.model(reshaped_x.to(self.device))
+            loss = self.criterion(y_hat, y.to(self.device))
+
+            # regularization
+            out = random.sample([i for i in range(3)], 2)
+            i, j = out[0], out[1]
+            num = 0.0
+            norm = 0.0
+            norm1 = 0.0
+            for name, m in self.model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
+                    vi = self.get_weight(m, i)
+                    vj = self.get_weight(m, j)
+
+                    num += (vi * vj).sum()
+                    norm += vi.pow(2).sum()
+                    norm1 += vj.pow(2).sum()
+
+            loss += self.beta * (num.pow(2) / (norm * norm1))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / len(loader.dataset)
+
+    def eval(self, loader: DataLoader):
+        running_losses = [0.0, 0.0, 0.0]
+        alphas = [0.0, 0.5, 1.0]
+        nums_right = [0, 0, 0]
+
+        if self.val_midpoint_only:
+            alphas = [0.5]
+
+        self.model.eval()
+
+        for i, alpha in enumerate(alphas):
+            for m in self.model.modules():
+                if isinstance(m, nn.Linear):
+                    for k in range(3):
+                        setattr(m, f't{k}', 1.0 / 3)
+
+            with torch.no_grad():
+                for j, (x, y) in enumerate(loader):
+                    reshaped_x = x.reshape(x.size(0), 784)
+                    y_hat = self.model(reshaped_x.to(self.device))
+                    nums_right[i] += torch.sum(
+                        y.to(self.device) == torch.argmax(
+                            y_hat, dim=-1)).detach().cpu().item()
+
+                    running_losses[i] += self.criterion(
+                        y_hat, y.to(self.device)).item()
+
+        # compute l2 and cos sim
+        num = 0.0
+        norm = 0.0
+        norm1 = 0.0
+
+        total_l2 = 0.0
+
+        for name, m in self.model.named_modules():
+            if (isinstance(m, nn.Linear) or isinstance(
+                    m, nn.Embedding)) and 'parameterization' not in name:
+
+                vi = self.get_weight(m, 0)
+                vj = self.get_weight(m, 1)
+
+                num += (vi * vj).sum()
+                norm += vi.pow(2).sum()
+                norm1 += vj.pow(2).sum()
+
+                total_l2 += (vi - vj).pow(2).sum()
+
+        total_cosim = num.pow(2) / (norm * norm1)
+        total_l2 = total_l2.sqrt()
+
+        return [num / len(loader.dataset) for num in nums_right
+                ], [loss / len(loader.dataset) for loss in running_losses
+                    ], total_cosim.item(), total_l2.item()
+
+
+class FashionMNISTSimplexSubspaceMLPTrainer(SimplexSubspaceMLPTrainer):
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+        self.name = 'simplex_subspace_vanilla_mlp'
         self.early_stopping_threshold = 10
 
         self.data_dim = 784

@@ -8,12 +8,14 @@ from torch import nn
 from torch.optim import Adam, AdamW
 from trainers.mlp_trainer import (FashionMNISTMLPTrainer,
                                   FashionMNISTNonLinearSubspaceMLPTrainer,
-                                  FashionMNISTSubspaceMLPTrainer)
+                                  FashionMNISTSubspaceMLPTrainer,
+                                  FashionMNISTSimplexSubspaceMLPTrainer)
 
 arg_trainer_map = {
     'f_mnist_mlp': FashionMNISTMLPTrainer,
     'f_mnist_subspace_mlp': FashionMNISTSubspaceMLPTrainer,
-    'f_mnist_nonlinear_subspace_mlp' : FashionMNISTNonLinearSubspaceMLPTrainer
+    'f_mnist_nonlinear_subspace_mlp': FashionMNISTNonLinearSubspaceMLPTrainer,
+    'f_mnist_simplex_subspace_mlp': FashionMNISTSimplexSubspaceMLPTrainer,
 }
 arg_optimizer_map = {'adamW': AdamW, 'adam': Adam}
 
@@ -42,14 +44,14 @@ def main() -> int:
     parser.add_argument(
         '--save_dir',
         default=
-        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
-        '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
+        # '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
         help='path to saved model files')
     parser.add_argument(
         '--data_dir',
         default=
-        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
-        '/home/tristan/loss-subspace-geometry-project/data/',
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
+        # '/home/tristan/loss-subspace-geometry-project/data/',
         help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',

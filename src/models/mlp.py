@@ -1,8 +1,9 @@
-from models.subspace_layers import LinesLinear, LinesNN
+from models.subspace_layers import LinesLinear, LinesNN, SimplexLinear
 from torch import nn
 from torch.nn import functional as F
 
 ## Standard MLP ##
+
 
 class MLP(nn.Module):
 
@@ -35,17 +36,21 @@ class NN(nn.Module):
 
         return self.out(x)
 
-## Standard MLP ##
 
+## Standard MLP ##
 
 ## Linear subspace ##
 
+
 class SubspaceMLP(nn.Module):
 
-    def __init__(self, n_in, n_out, seed, dropout_prob=0.15):
+    def __init__(self, n_in, n_out, seed, dropout_prob=0.15, num_weights=2):
         super().__init__()
 
-        self.linear = LinesLinear(n_in, n_out)
+        if num_weights == 2:
+            self.linear = LinesLinear(n_in, n_out)
+        elif num_weights == 3:
+            self.linear = SimplexLinear(in_features=n_in, out_features=n_out)
         self.linear.initialize(seed)
         self.dropout = nn.Dropout(p=dropout_prob)
 
@@ -59,15 +64,26 @@ class SubspaceMLP(nn.Module):
 
 class SubspaceNN(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, out_dim, dropout_prob,
-                 seed) -> None:
+    def __init__(self,
+                 input_dim,
+                 hidden_dim,
+                 out_dim,
+                 dropout_prob,
+                 seed,
+                 num_weights=2) -> None:
         super().__init__()
 
         self.mlp = SubspaceMLP(n_in=input_dim,
                                n_out=hidden_dim,
                                dropout_prob=dropout_prob,
-                               seed=seed)
-        self.out = LinesLinear(in_features=hidden_dim, out_features=out_dim)
+                               seed=seed,
+                               num_weights=num_weights)
+        if num_weights == 2:
+            self.out = LinesLinear(in_features=hidden_dim,
+                                   out_features=out_dim)
+        elif num_weights == 3:
+            self.out = SimplexLinear(in_features=hidden_dim,
+                                     out_features=out_dim)
         self.out.initialize(seed)
 
     def forward(self, x):
@@ -75,10 +91,11 @@ class SubspaceNN(nn.Module):
 
         return self.out(x)
 
+
 ## Linear subspace ##
 
-
 ## Non-Linear subspace ##
+
 
 class NonLinearSubspaceMLP(nn.Module):
 
@@ -95,6 +112,7 @@ class NonLinearSubspaceMLP(nn.Module):
 
         return x
 
+
 class NonLinearSubspaceNN(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, out_dim, dropout_prob,
@@ -102,14 +120,15 @@ class NonLinearSubspaceNN(nn.Module):
         super().__init__()
 
         self.mlp = NonLinearSubspaceMLP(n_in=input_dim,
-                               n_out=hidden_dim,
-                               dropout_prob=dropout_prob,
-                               seed=seed)
+                                        n_out=hidden_dim,
+                                        dropout_prob=dropout_prob,
+                                        seed=seed)
         self.out = LinesNN(in_features=hidden_dim, out_features=out_dim)
 
     def forward(self, x):
         x = self.mlp(x)
 
         return self.out(x)
+
 
 ## Non-Linear subspace ##
