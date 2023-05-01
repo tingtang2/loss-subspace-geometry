@@ -13,9 +13,27 @@ sys.path.insert(
     '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry/src'
 )
 
+import argparse
+
 import torchvision
 import torchvision.transforms as transforms
 from models.mlp import NN, SubspaceNN
+
+parser = argparse.ArgumentParser(
+    description='Computes values for plane visualization')
+parser.add_argument(
+    '--subspace-shape',
+    # default='line',
+    default='simplex',
+    help='shape of subspace you want to visualize')
+parser.add_argument(
+    '--model-path',
+    default=
+    # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/subspace_vanilla_mlp_0.pt',
+    '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/simplex_subspace_vanilla_mlp_0.pt',
+    help='path to model weights file')
+args = parser.parse_args()
+configs = args.__dict__
 
 # configs
 data_dim = 784
@@ -25,14 +43,18 @@ dropout_prob = 0.3
 seed = 11202022
 device = torch.device('cuda')
 
-model_path = '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/subspace_vanilla_mlp_0.pt'
+if configs['subspace_shape'] == 'line':
+    num_weights = 2
+elif configs['subspace_shape'] == 'simplex':
+    num_weights = 3
 
 curve_model = SubspaceNN(input_dim=data_dim,
                          hidden_dim=hidden_size,
                          out_dim=out_dim,
                          dropout_prob=dropout_prob,
-                         seed=seed).to(device)
-checkpoint = torch.load(model_path)
+                         seed=seed,
+                         num_weights=num_weights).to(device)
+checkpoint = torch.load(configs['model_path'])
 curve_model.load_state_dict(checkpoint)
 
 # more configs
@@ -46,39 +68,62 @@ margin_top = 0.2
 curve_parameters = list(curve_model.parameters())
 w = []
 
-w.append(
-    np.concatenate([
-        p.data.cpu().numpy().ravel() for p in [
-            curve_parameters[0], curve_parameters[1], curve_parameters[3],
-            curve_parameters[4]
-        ]
-    ]))
+if configs['subspace_shape'] == 'line':
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel() for p in [
+                curve_parameters[0], curve_parameters[1], curve_parameters[3],
+                curve_parameters[4]
+            ]
+        ]))
 
-isolated_model = NN(input_dim=data_dim,
-                    hidden_dim=hidden_size,
-                    out_dim=out_dim,
-                    dropout_prob=dropout_prob).to(device)
-isolated_checkpoint = torch.load(
-    '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_0.pt'
-)
-isolated_model.load_state_dict(isolated_checkpoint)
+    isolated_model = NN(input_dim=data_dim,
+                        hidden_dim=hidden_size,
+                        out_dim=out_dim,
+                        dropout_prob=dropout_prob).to(device)
+    isolated_checkpoint = torch.load(
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_0.pt'
+    )
+    isolated_model.load_state_dict(isolated_checkpoint)
 
-w.append(
-    np.concatenate([
-        p.data.cpu().numpy().ravel() for p in list(isolated_model.parameters())
-    ]))
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel()
+            for p in list(isolated_model.parameters())
+        ]))
 
-w.append(
-    np.concatenate([
-        p.data.cpu().numpy().ravel() for p in [
-            curve_parameters[2], curve_parameters[1], curve_parameters[5],
-            curve_parameters[4]
-        ]
-    ]))
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel() for p in [
+                curve_parameters[2], curve_parameters[1], curve_parameters[5],
+                curve_parameters[4]
+            ]
+        ]))
+elif configs['subspace_shape'] == 'simplex':
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel() for p in [
+                curve_parameters[0], curve_parameters[1], curve_parameters[4],
+                curve_parameters[5]
+            ]
+        ]))
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel() for p in [
+                curve_parameters[2], curve_parameters[1], curve_parameters[6],
+                curve_parameters[5]
+            ]
+        ]))
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel() for p in [
+                curve_parameters[3], curve_parameters[1], curve_parameters[7],
+                curve_parameters[5]
+            ]
+        ]))
+
 
 # set up for grid for plane plotting
-
-
 def get_xy(point, origin, vector_x, vector_y):
     return np.array(
         [np.dot(point - origin, vector_x),
@@ -99,26 +144,50 @@ v /= dy
 bend_coordinates = np.stack(get_xy(p, w[0], u, v) for p in w)
 
 
-def get_weights(model: nn.Module, t):
+def get_weights(model: nn.Module, t: int, t_2: int = 0, type: str = 'line'):
     weights = []
     for module in model.modules():
         if isinstance(module, nn.Linear):
             # add attribute for weight dimensionality and subspace dimensionality
-            setattr(module, f'alpha', t)
+            if type == 'line':
+                setattr(module, f'alpha', t)
+            elif type == 'simplex':
+                setattr(module, f't1', t)
+                setattr(module, f't2', t_2)
+
             weights.extend([module.get_weight(), module.bias.data])
-        # weights.extend([w for w in module.compute_weights_t(coeffs_t) if w is not None])
     return np.concatenate([w.detach().cpu().numpy().ravel() for w in weights])
 
 
-ts = np.linspace(0.0, 1.0, curve_points)
-curve_coordinates = []
-for t in np.linspace(0.0, 1.0, curve_points):
-    weights = get_weights(model=curve_model, t=t)
-    curve_coordinates.append(get_xy(weights, w[0], u, v))
+if configs['subspace_shape'] == 'line':
+    ts = np.linspace(0.0, 1.0, curve_points)
+    curve_coordinates = []
+    for t in np.linspace(0.0, 1.0, curve_points):
+        weights = get_weights(model=curve_model, t=t)
+        curve_coordinates.append(get_xy(weights, w[0], u, v))
 
-isolated_model_weights = w[2]
-curve_coordinates.append(get_xy(isolated_model_weights, w[0], u, v))
-curve_coordinates = np.stack(curve_coordinates)
+    isolated_model_weights = w[2]
+    curve_coordinates.append(get_xy(isolated_model_weights, w[0], u, v))
+    curve_coordinates = np.stack(curve_coordinates)
+
+elif configs['subspace_shape'] == 'simplex':
+    ts = np.linspace(0.0, 1.0, curve_points)
+    t_2s = np.linspace(0.0, 1.0, curve_points)
+
+    # tile simplex subspace
+    xx, yy = np.meshgrid(ts, t_2s)
+    curve_coordinates = []
+    for i in range(ts.shape[0]):
+        for j in range(t_2s.shape[0]):
+            t = xx[i, j]
+            t_2 = yy[i, j]
+            weights = get_weights(model=curve_model,
+                                  t=t,
+                                  t_2=t_2,
+                                  type='simplex')
+            curve_coordinates.append(get_xy(weights, w[0], u, v))
+
+    curve_coordinates = np.stack(curve_coordinates)
 
 G = grid_points
 alphas = np.linspace(0.0 - margin_left, 1.0 + margin_right, G)
@@ -237,7 +306,7 @@ for i, alpha in enumerate(tqdm(alphas)):
 
 np.savez(os.path.join(
     '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
-    'plane.npz'),
+    'simplex_plane.npz'),
          ts=ts,
          bend_coordinates=bend_coordinates,
          curve_coordinates=curve_coordinates,

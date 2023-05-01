@@ -37,6 +37,32 @@ class LinesLinear(TwoParamLinear):
         return w
 
 
+# TODO: add bias weight and retrain
+class ThreeParamLinear(SubspaceLinear):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.weight_1 = nn.Parameter(torch.zeros_like(self.weight))
+        self.weight_2 = nn.Parameter(torch.zeros_like(self.weight))
+
+    def initialize(self, seed):
+        if seed == -1:  # SCAFFOLD
+            torch.nn.init.zeros_(self.weight_1)
+            torch.nn.init.zeros_(self.weight_2)
+        else:
+            torch.manual_seed(seed)
+            torch.nn.init.xavier_normal_(self.weight_1)
+            torch.nn.init.xavier_normal_(self.weight_2)
+
+
+class SimplexLinear(ThreeParamLinear):
+
+    def get_weight(self):
+        mult = 1 - self.t1 - self.t2
+        w = mult * self.weight + self.t1 * self.weight_1 + self.t2 * self.weight_2
+        return w
+
+
 # Nonlinear layer implementation
 
 
@@ -47,6 +73,7 @@ class SubspaceNonLinear(nn.Linear):
         x = F.linear(input=x, weight=w, bias=self.bias)
         return x
 
+
 # Nonlinear line subspace #
 class TwoParamNonLinear(SubspaceNonLinear):
 
@@ -55,11 +82,13 @@ class TwoParamNonLinear(SubspaceNonLinear):
         self.line = ParameterizedSubspace(n_in=1,
                                           n_out=torch.numel(self.weight))
 
+
 class LinesNN(TwoParamNonLinear):
 
     def get_weight(self):
         w = self.line.forward(self.alpha)
         return w
+
 
 # Neural net parameterization for the loss subspace of arbitrary dimension
 class ParameterizedSubspace(nn.Module):
