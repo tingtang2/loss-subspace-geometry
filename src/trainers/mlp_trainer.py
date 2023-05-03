@@ -396,7 +396,7 @@ class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self.name = 'nonlinear_subspace_vanilla_mlp'
+        self.name = f'nonlinear_subspace_vanilla_mlp'
         self.early_stopping_threshold = 10
 
         self.data_dim = 784

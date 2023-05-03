@@ -44,14 +44,14 @@ def main() -> int:
     parser.add_argument(
         '--save_dir',
         default=
-        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
-        # '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
+        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
+        '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
         help='path to saved model files')
     parser.add_argument(
         '--data_dir',
         default=
-        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
-        # '/home/tristan/loss-subspace-geometry-project/data/',
+        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
+        '/home/tristan/loss-subspace-geometry-project/data/',
         help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',

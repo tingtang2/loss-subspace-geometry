@@ -10,13 +10,26 @@ import seaborn as sns
 parser = argparse.ArgumentParser(description='Plane visualization')
 parser.add_argument('--dir',
                     type=str,
-                    default='/tmp/curve/',
+                    default='../src/',
                     metavar='DIR',
-                    help='training directory (default: None)')
+                    help='training directory')
+parser.add_argument('--file',
+                    type=str,
+                    default='plane',
+                    help='training file')
+parser.add_argument('--scale',
+                    type=str,
+                    default='std')
+
+parser.add_argument('--log_alpha',
+                    type=float,
+                    default=-5.0)
 
 args = parser.parse_args()
 
-file = np.load(os.path.join(args.dir, 'plane_nonlinear.npz'))
+savedir_root = '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/images'
+
+file = np.load(os.path.join(args.dir, args.file+'.npz'))
 print(file['grid'].shape)
 # matplotlib.rc('text', usetex=True)
 # plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
@@ -45,24 +58,29 @@ class LogNormalize(colors.Normalize):
             np.log(self.vmax - self.vmin) - self.log_alpha)
 
 
-def plane(grid, values, vmax=None, log_alpha=-5, N=7, cmap='jet_r'):
+def plane(grid, values, scale, vmax=None, log_alpha=-5, N=7, cmap='jet_r'):
     cmap = plt.get_cmap(cmap)
     if vmax is None:
         clipped = values.copy()
     else:
         clipped = np.minimum(values, vmax)
-    log_gamma = (np.log(clipped.max() - clipped.min()) - log_alpha) / N
-    levels = clipped.min() + np.exp(log_alpha + log_gamma * np.arange(N + 1))
-    levels[0] = clipped.min()
-    levels[-1] = clipped.max()
+    if scale == "log":
+        log_gamma = (np.log(clipped.max() - clipped.min()) - log_alpha) / N
+        levels = clipped.min() + np.exp(log_alpha + log_gamma * np.arange(N + 1))
+        levels[0] = clipped.min()
+        levels[-1] = clipped.max()
+        norm = LogNormalize(clipped.min() - 1e-8,
+                    clipped.max() + 1e-8,
+                    log_alpha=log_alpha)
+    elif scale == "std":
+        gamma = (clipped.max() - clipped.min())/N
+        levels = clipped.min() + gamma*np.arange(N+1)
+        norm = None
+    else:
+        raise Exception("invalid scale argument")
+
     levels = np.concatenate((levels, [1e10]))
-    print()
-    print(grid[:, 0, 0])
-    print(grid[0, :, 1])
-    print()
-    norm = LogNormalize(clipped.min() - 1e-8,
-                        clipped.max() + 1e-8,
-                        log_alpha=log_alpha)
+
     contour = plt.contour(grid[:, 0, 0],
                           grid[0, :, 1],
                           values,
@@ -92,11 +110,14 @@ def plane(grid, values, vmax=None, log_alpha=-5, N=7, cmap='jet_r'):
 
 plt.figure(figsize=(12.4, 7))
 
+log_alpha = args.log_alpha
+
 contour, contourf, colorbar = plane(file['grid'],
                                     file['tr_loss'],
                                     vmax=None,
-                                    log_alpha=-10,
-                                    N=7)
+                                    log_alpha=log_alpha,
+                                    N=7,
+                                    scale=args.scale)
 
 bend_coordinates = file['bend_coordinates']
 curve_coordinates = file['curve_coordinates']
@@ -131,7 +152,7 @@ plt.margins(0.0)
 plt.yticks(fontsize=18)
 plt.xticks(fontsize=18)
 colorbar.ax.tick_params(labelsize=18)
-plt.savefig(os.path.join(args.dir, 'train_loss_plane_nonlinear.pdf'),
+plt.savefig(os.path.join(savedir_root, args.file+'_logalpha_'+str(args.log_alpha)+'_train.pdf'),
             format='pdf',
             bbox_inches='tight')
 # plt.show()
@@ -142,8 +163,9 @@ plt.figure(figsize=(12.4, 7))
 contour, contourf, colorbar = plane(file['grid'],
                                     file['te_err'],
                                     vmax=None,
-                                    log_alpha=-10.0,
-                                    N=7)
+                                    log_alpha=log_alpha,
+                                    N=7,
+                                    scale=args.scale)
 
 bend_coordinates = file['bend_coordinates']
 curve_coordinates = file['curve_coordinates']
@@ -179,7 +201,7 @@ plt.margins(0.0)
 plt.yticks(fontsize=18)
 plt.xticks(fontsize=18)
 colorbar.ax.tick_params(labelsize=18)
-plt.savefig(os.path.join(args.dir, 'test_error_plane_nonlinear.pdf'),
+plt.savefig(os.path.join(savedir_root, args.file+'_logalpha_'+str(args.log_alpha)+'_test.pdf'),
             format='pdf',
             bbox_inches='tight')
 # plt.show()
