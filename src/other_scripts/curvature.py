@@ -5,12 +5,26 @@ import os, sys
 import networkx as nx
 import numpy as np
 
+import scipy.sparse.csgraph as csg
+from multiprocessing import Pool
+
 # root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # sys.path.insert(0, root_dir)
-import utils.load_graph as load_graph
-import utils.vis as vis
-import utils.distortions as dis
-import pytorch.graph_helpers as gh
+
+
+def load_graph(file_name, directed=False):
+    G = nx.DiGraph() if directed else nx.Graph()
+    with open(file_name, "r") as f:
+        for line in f:
+            tokens = line.split()
+            u = int(tokens[0])
+            v = int(tokens[1])
+            if len(tokens) > 2:
+                w = float(tokens[2])
+                G.add_edge(u, v, weight=w)
+            else:
+                G.add_edge(u, v)
+    return G
 
 
 def Ka(D, m, b, c, a):
@@ -118,17 +132,58 @@ def sample_K(m1, m2, n1=5, n2=5, n_samples=100):
     return ((K1_soln1, K2_soln1), (K1_soln2, K2_soln2))
 
 
+def djikstra_wrapper(_x):
+    (mat, x) = _x
+    return csg.dijkstra(mat, indices=x, unweighted=False, directed=False)
+
+
+def create_graph():
+    pass
+
+
+def build_distance(G, scale, num_workers=None):
+    n = G.order()
+    p = Pool() if num_workers is None else Pool(num_workers)
+
+    #adj_mat_original = nx.to_scipy_sparse_matrix(G)
+    adj_mat_original = nx.to_scipy_sparse_matrix(G,
+                                                 nodelist=list(range(
+                                                     G.order())))
+
+    # Simple chunking
+    nChunks = 128 if num_workers is not None and num_workers > 1 else n
+    if n > nChunks:
+        chunk_size = n // nChunks
+        extra_chunk_size = (n - (n // nChunks) * nChunks)
+
+        chunks = [
+            list(range(k * chunk_size, (k + 1) * chunk_size))
+            for k in range(nChunks)
+        ]
+        if extra_chunk_size > 0:
+            chunks.append(list(range(n - extra_chunk_size, n)))
+        Hs = p.map(djikstra_wrapper,
+                   [(adj_mat_original, chunk) for chunk in chunks])
+        H = np.concatenate(Hs, 0)
+        logging.info(f"\tFinal Matrix {H.shape}")
+    else:
+        H = djikstra_wrapper((adj_mat_original, list(range(n))))
+
+    H *= scale
+    return H
+
+
 # def match_moments(coefK1, coefK2, coefK12, coefK22, coefK1K2, m1, m2):
 
 
 # @argh.arg('--dataset')
 def estimate(dataset='data/edges/smalltree.edges', n_samples=100000):
-    G = load_graph.load_graph(dataset)
+    G = load_graph(dataset)
     n = G.order()
     GM = nx.to_scipy_sparse_matrix(G, nodelist=list(range(G.order())))
 
     num_workers = 16
-    D = gh.build_distance(G, 1.0, num_workers)  # load the whole matrix
+    D = build_distance(G, 1.0, num_workers)  # load the whole matrix
 
     # n_samples = 100000
     n1 = 5
