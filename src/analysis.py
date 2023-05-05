@@ -11,6 +11,7 @@ from torch.distributions.exponential import Exponential
 from tqdm import tqdm
 
 from models.mlp import SubspaceNN
+from other_scripts.curvature import estimate
 
 
 def estimate_tangent_plane(X: np.ndarray, num_neighbors: int) -> int:
@@ -28,16 +29,6 @@ def estimate_tangent_plane(X: np.ndarray, num_neighbors: int) -> int:
         dim_estimates.append(basis.shape[1])
 
     return sum(dim_estimates) / len(dim_estimates)
-
-
-# def get_weights(model: nn.Module, alpha: float):
-#     weights = []
-#     for module in model.modules():
-#         if isinstance(module, nn.Linear):
-#             # add attribute for weight dimensionality and subspace dimensionality
-#             setattr(module, f'alpha', alpha)
-#             weights.extend([module.get_weight(), module.bias.data])
-#     return np.concatenate([w.detach().cpu().numpy().ravel() for w in weights])
 
 
 def get_weights(model: nn.Module,
@@ -104,15 +95,16 @@ def main() -> int:
 
     sample_weights = []
     if 'simplex' in configs['model_path']:
-        # TODO: Look at random vs. tiling for simplex sampling
+        # TODO: Look at random vs. tiling for simplex sampling (random looks bad)
         # dist = Exponential(rate=1)
         # Z = dist.sample(sample_shape=(configs['num_samples'], 3))
         # Z = Z / Z.sum()
-        # for m in self.model.modules():
-        #     if isinstance(m, nn.Linear):
-        #         # add attribute for weight dimensionality and subspace dimensionality
-        #         for i in range(1, 3):
-        #             setattr(m, f't{i}', Z[i])
+        # for idx in range(Z.shape[0]):
+        #     sample_weights.append(
+        #         get_weights(model=model,
+        #                     t=Z[idx][1],
+        #                     t_2=Z[idx][2],
+        #                     type='simplex'))
         ts = np.linspace(0.0, 1.0, configs['num_samples'])
         t_2s = np.linspace(0.0, 1.0, configs['num_samples'])
 
@@ -122,9 +114,9 @@ def main() -> int:
             for j in range(t_2s.shape[0]):
                 t = xx[i, j]
                 t_2 = yy[i, j]
-
                 sample_weights.append(
                     get_weights(model=model, t=t, t_2=t_2, type='simplex'))
+
     else:
         # sample from line
         sample_alphas = np.linspace(start=0,
@@ -144,13 +136,15 @@ def main() -> int:
     elif configs['estimation_type'] == 'mle':
         for k in tqdm(k_s):
             print(
-                f'num: neighbors: {k}, dim estimate: {skdim.id.MLE(K=k).fit_predict(np.vstack(sample_weights))}'
+                f'num: neighbors: {k}, dim estimate: {skdim.id.MLE(K=k, neighborhood_based=False).fit_predict(np.vstack(sample_weights))}'
             )
     elif configs['estimation_type'] == 'skdim_knn':
         for k in tqdm(k_s):
             print(
                 f'num: neighbors: {k}, dim estimate: {skdim.id.KNN(k=k).fit(np.vstack(sample_weights)).dimension_}'
             )
+    elif configs['estimation_type'] == 'triangle_empirical_curvature':
+        estimate(dataset=np.vstack(sample_weights))
 
     return 0
 

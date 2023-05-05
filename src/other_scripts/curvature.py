@@ -7,6 +7,10 @@ import numpy as np
 
 import scipy.sparse.csgraph as csg
 from multiprocessing import Pool
+from numpy.random import default_rng
+from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
+
+rng = default_rng(11202022)
 
 # root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # sys.path.insert(0, root_dir)
@@ -59,16 +63,16 @@ def sample_G(G, D, n, n_samples=100):
     samples = []
     _cnt = 0
     while _cnt < n_samples:
-        m = np.random.randint(0, n)
+        m = rng.integers(0, n)
         edges = list(G.edges(m))
         # print(f"edges of {m}: {edges}")
-        i = np.random.randint(0, len(edges))
-        j = np.random.randint(0, len(edges))
+        i = rng.integers(0, len(edges))
+        j = rng.integers(0, len(edges))
         b = edges[i][1]
         c = edges[j][1]
         # TODO special case for b=c?
         if b == c: continue
-        a = np.random.randint(0, n)
+        a = rng.integers(0, n)
         k = Ka(D, m, b, c, a)
         samples.append(k)
         # print(k)
@@ -80,14 +84,13 @@ def sample_G(G, D, n, n_samples=100):
 
 def sample_components(n1=5, n2=5):
     """ Sample dot products of tangent vectors """
-    a1 = np.random.chisquare(n1 - 1)  # ||x_1||^2
-    b1 = np.random.chisquare(n1 - 1)  # ||y_1||^2
-    c1 = 2 * np.random.beta((n1 - 1) / 2,
-                            (n1 - 1) / 2) - 1  # <x_1,y_1> normalized
+    a1 = rng.chisquare(n1 - 1)  # ||x_1||^2
+    b1 = rng.chisquare(n1 - 1)  # ||y_1||^2
+    c1 = 2 * rng.beta((n1 - 1) / 2, (n1 - 1) / 2) - 1  # <x_1,y_1> normalized
     c1 = a1 * b1 * c1**2  # <x_1,y_1>^2
-    a2 = np.random.chisquare(n2 - 1)  # ||x_1||^2
-    b2 = np.random.chisquare(n2 - 1)  # ||y_1||^2
-    c2 = 2 * np.random.beta((n2 - 1) / 2, (n2 - 1) / 2) - 1
+    a2 = rng.chisquare(n2 - 1)  # ||x_1||^2
+    b2 = rng.chisquare(n2 - 1)  # ||y_1||^2
+    c2 = 2 * rng.beta((n2 - 1) / 2, (n2 - 1) / 2) - 1
     c2 = a2 * b2 * c2**2
     alpha1 = a1 * b1 - c1
     alpha2 = a2 * b2 - c2
@@ -137,10 +140,6 @@ def djikstra_wrapper(_x):
     return csg.dijkstra(mat, indices=x, unweighted=False, directed=False)
 
 
-def create_graph():
-    pass
-
-
 def build_distance(G, scale, num_workers=None):
     n = G.order()
     p = Pool() if num_workers is None else Pool(num_workers)
@@ -176,11 +175,24 @@ def build_distance(G, scale, num_workers=None):
 # def match_moments(coefK1, coefK2, coefK12, coefK22, coefK1K2, m1, m2):
 
 
+def convert_to_graph(X: np.ndarray, graph_type):
+    if graph_type == 'knn':
+        A = kneighbors_graph(X=X, n_neighbors=5, mode='distance')
+    elif graph_type == 'epsilon':
+        A = radius_neighbors_graph(X=X)
+
+    return nx.from_scipy_sparse_matrix(A.tocsr())
+
+
 # @argh.arg('--dataset')
-def estimate(dataset='data/edges/smalltree.edges', n_samples=100000):
-    G = load_graph(dataset)
+def estimate(dataset='data/edges/smalltree.edges',
+             n_samples=100000,
+             graph_type='knn'):
+    if isinstance(dataset, str):
+        G = load_graph(dataset)
+    else:
+        G = convert_to_graph(dataset, graph_type=graph_type)
     n = G.order()
-    GM = nx.to_scipy_sparse_matrix(G, nodelist=list(range(G.order())))
 
     num_workers = 16
     D = build_distance(G, 1.0, num_workers)  # load the whole matrix
