@@ -172,20 +172,23 @@ if configs['subspace_shape'] == 'line':
 
 elif configs['subspace_shape'] == 'simplex':
     ts = np.linspace(0.0, 1.0, curve_points)
-    t_2s = np.linspace(0.0, 1.0, curve_points)
-
-    # tile simplex subspace
-    xx, yy = np.meshgrid(ts, t_2s)
     curve_coordinates = []
-    for i in range(ts.shape[0]):
-        for j in range(t_2s.shape[0]):
-            t = xx[i, j]
-            t_2 = yy[i, j]
-            weights = get_weights(model=curve_model,
-                                  t=t,
-                                  t_2=t_2,
-                                  type='simplex')
-            curve_coordinates.append(get_xy(weights, w[0], u, v))
+
+    # first triangle segment
+    for t in ts:
+        t_2 = 1 - t
+        weights = get_weights(model=curve_model, t=t, t_2=t_2, type='simplex')
+        curve_coordinates.append(get_xy(weights, w[0], u, v))
+
+    # second triangle segment
+    for t_2 in ts:
+        weights = get_weights(model=curve_model, t=0, t_2=t_2, type='simplex')
+        curve_coordinates.append(get_xy(weights, w[0], u, v))
+
+    # third triangle segment
+    for t in ts:
+        weights = get_weights(model=curve_model, t=t, t_2=0, type='simplex')
+        curve_coordinates.append(get_xy(weights, w[0], u, v))
 
     curve_coordinates = np.stack(curve_coordinates)
 
