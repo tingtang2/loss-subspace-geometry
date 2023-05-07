@@ -123,8 +123,7 @@ contour, contourf, colorbar = plane(file['grid'],
                                     N=7,
                                     scale=args.scale)
 
-bend_coordinates = np.array(file['bend_coordinates'])
-curve_coordinates = np.array(file['curve_coordinates'])
+bend_coordinates = np.array(file['bend_coordinates'])/15
 print(bend_coordinates)
 
 plt.scatter(bend_coordinates[:2,0],
@@ -140,6 +139,7 @@ plt.scatter(bend_coordinates[2, 0],
             s=120,
             zorder=2)
 if args.curve:
+    curve_coordinates = np.array(file['curve_coordinates'])/15
     plt.plot(curve_coordinates[:, 0],
             curve_coordinates[:, 1],
             linewidth=4,

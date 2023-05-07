@@ -48,7 +48,8 @@ def calc_dT(data):
     dT = np.diff(T, axis=0)
     return dT
 
-def calc_curvature(data, alpha):
+def calc_curvature(data):
+    """ Calculate the curvature of an arbitrarily high dimensional 1-d space """
     dT = calc_dT(data)
     ds = calc_ds(data)[1:]
     curvature = np.linalg.norm(dT/ds, axis=1)
@@ -84,8 +85,8 @@ def main() -> int:
         default='knn',
         help='kind of estimation (dimensionality/curvature) to perform')
     parser.add_argument(
-       '--savedir',
-       default= '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/images'
+        '--savedir',
+        default= '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/images'
     )
 
     args = parser.parse_args()
@@ -99,15 +100,12 @@ def main() -> int:
        alpha = np.linspace(0, 1, 1000)
 
     k_s = [3, 5, 8, 13]
-    # for k in tqdm(k_s):
-    #     print(
-    #         f'num: neighbors: {k}, dim estimate: {skdim.id.KNN(k=k).fit(sample_weights).dimension_}'
-    #     )
+    for k in tqdm(k_s):
+        print(
+            f'num: neighbors: {k}, dim estimate: {skdim.id.KNN(k=k).fit(sample_weights).dimension_}'
+        )
     curvature = calc_curvature(sample_weights, alpha)
-    mean_curvature = np.mean(curvature)
     plot_curvature(alpha, curvature, args.savedir, args.file)
-
-    print(mean_curvature)
     return 0
 
 
