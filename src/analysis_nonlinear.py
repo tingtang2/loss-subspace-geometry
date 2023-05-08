@@ -9,8 +9,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.linalg import orth
 from sklearn.neighbors import NearestNeighbors
+from sklearn.decomposition import PCA
 from torch import nn
 from torch.distributions.exponential import Exponential
+import seaborn as sns
+sns.set_theme()
 from tqdm import tqdm
 
 from models.mlp import SubspaceNN
@@ -64,9 +67,16 @@ def plot_curvature(alpha, curvature, savedir, filename):
             format='pdf',
             bbox_inches='tight')
 
-def estimate_curvature(X: np.ndarray) -> int:
-
-    return 0
+def pca_projection(sample_weights, savedir, filename):
+    pca = PCA(n_components=2)
+    X_transform = pca.fit_transform(sample_weights)
+    plt.figure(figsize=(12.4, 7))
+    plt.plot(X_transform[:,0], X_transform[:,1])
+    plt.xlabel('First principal coordinates of subspace')
+    plt.ylabel('Second principal coordinates of subspace')
+    plt.savefig(os.path.join(savedir, filename+'_pca.pdf'),
+            format='pdf',
+            bbox_inches='tight')
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -76,7 +86,7 @@ def main() -> int:
         '--dir',
         default=
         # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/subspace_vanilla_mlp_0.pt',
-        '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
+        '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry/src',
         help='path to sampled weight file')
     parser.add_argument(
         '--file')
@@ -87,6 +97,10 @@ def main() -> int:
     parser.add_argument(
         '--savedir',
         default= '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/images'
+    )
+    parser.add_argument(
+        '--project',
+        default=False
     )
 
     args = parser.parse_args()
@@ -99,13 +113,21 @@ def main() -> int:
     else:
        alpha = np.linspace(0, 1, 1000)
 
+    ## calculate and plot curvature
+    curvature = calc_curvature(sample_weights)
+    plot_curvature(alpha, curvature, args.savedir, args.file)
+
+    # project onto 2 principal eigenvectors and plot
+    if (args.project):
+        pca_projection(sample_weights, args.savedir, args.file)
+
+    ## estimate dimensionality
     k_s = [3, 5, 8, 13]
     for k in tqdm(k_s):
         print(
             f'num: neighbors: {k}, dim estimate: {skdim.id.KNN(k=k).fit(sample_weights).dimension_}'
         )
-    curvature = calc_curvature(sample_weights, alpha)
-    plot_curvature(alpha, curvature, args.savedir, args.file)
+
     return 0
 
 
