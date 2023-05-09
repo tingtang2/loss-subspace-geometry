@@ -106,14 +106,9 @@ def main() -> int:
         #                     t_2=Z[idx][2],
         #                     type='simplex'))
         ts = np.linspace(0.0, 1.0, configs['num_samples'])
-        t_2s = np.linspace(0.0, 1.0, configs['num_samples'])
 
-        # tile simplex subspace
-        xx, yy = np.meshgrid(ts, t_2s)
-        for i in range(ts.shape[0]):
-            for j in range(t_2s.shape[0]):
-                t = xx[i, j]
-                t_2 = yy[i, j]
+        for t in ts:
+            for t_2 in np.linspace(t, 1 - t, configs['num_samples']):
                 sample_weights.append(
                     get_weights(model=model, t=t, t_2=t_2, type='simplex'))
 
@@ -136,7 +131,7 @@ def main() -> int:
     elif configs['estimation_type'] == 'mle':
         for k in tqdm(k_s):
             print(
-                f'num: neighbors: {k}, dim estimate: {skdim.id.MLE(K=k, neighborhood_based=False).fit_predict(np.vstack(sample_weights))}'
+                f'num: neighbors: {k}, dim estimate: {skdim.id.MLE(K=k).fit_predict(np.vstack(sample_weights))}'
             )
     elif configs['estimation_type'] == 'skdim_knn':
         for k in tqdm(k_s):
