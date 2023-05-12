@@ -2,6 +2,7 @@ import os
 import sys
 
 import numpy as np
+from numpy.random import default_rng
 import tabulate
 import torch
 from torch import nn
@@ -17,21 +18,53 @@ import argparse
 
 import torchvision
 import torchvision.transforms as transforms
-from models.mlp import NN, SubspaceNN
+from models.mlp import NN, SubspaceNN, NonLinearSubspaceNN
+
+
+def get_weight(m, i):
+    return m.line.forward(torch.tensor([i], dtype=torch.float32,
+                                       device=device))
+
+
+def get_weights(model: nn.Module, t: int, t_2: int = 0, type: str = 'line'):
+    weights = []
+    with torch.no_grad():
+        for name, module in model.named_modules():
+            if isinstance(module,
+                          nn.Linear) and 'parameterization' not in name:
+                if type == 'nn':
+                    weights.extend([get_weight(module, t), module.bias.data])
+                else:
+
+                    # add attribute for weight dimensionality and subspace dimensionality
+                    if type == 'line':
+                        setattr(module, f'alpha', t)
+                    elif type == 'simplex':
+                        setattr(module, f't1', t)
+                        setattr(module, f't2', t_2)
+
+                    weights.extend([module.get_weight(), module.bias.data])
+    return np.concatenate([w.detach().cpu().numpy().ravel() for w in weights])
+
 
 parser = argparse.ArgumentParser(
     description='Computes values for plane visualization')
-parser.add_argument(
-    '--subspace-shape',
-    # default='line',
-    default='simplex',
-    help='shape of subspace you want to visualize')
+parser.add_argument('--subspace-shape',
+                    default='points',
+                    help='shape of subspace you want to visualize')
 parser.add_argument(
     '--model-path',
     default=
-    # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/subspace_vanilla_mlp_0.pt',
-    '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/simplex_subspace_vanilla_mlp_0.pt',
+    '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_0.pt',
     help='path to model weights file')
+parser.add_argument('--perturb',
+                    action='store_true',
+                    help='add gaussian noise to endpoints')
+parser.add_argument('--noise',
+                    default=1.0,
+                    type=float,
+                    help='std parameter for perturbation noise')
+
 args = parser.parse_args()
 configs = args.__dict__
 
@@ -43,19 +76,36 @@ dropout_prob = 0.3
 seed = 11202022
 device = torch.device('cuda')
 
-if configs['subspace_shape'] == 'line':
-    num_weights = 2
-elif configs['subspace_shape'] == 'simplex':
-    num_weights = 3
+rng = default_rng(seed=seed)
 
-curve_model = SubspaceNN(input_dim=data_dim,
-                         hidden_dim=hidden_size,
-                         out_dim=out_dim,
-                         dropout_prob=dropout_prob,
-                         seed=seed,
-                         num_weights=num_weights).to(device)
+if configs['subspace_shape'] == 'nn':
+    curve_model = NonLinearSubspaceNN(input_dim=data_dim,
+                                      hidden_dim=hidden_size,
+                                      out_dim=out_dim,
+                                      dropout_prob=dropout_prob,
+                                      seed=seed).to(device)
+elif configs['subspace_shape'] == 'points':
+    curve_model = NN(input_dim=data_dim,
+                     hidden_dim=hidden_size,
+                     out_dim=out_dim,
+                     dropout_prob=dropout_prob).to(device)
+
+else:
+    if configs['subspace_shape'] == 'line':
+        num_weights = 2
+    elif configs['subspace_shape'] == 'simplex':
+        num_weights = 3
+
+    curve_model = SubspaceNN(input_dim=data_dim,
+                             hidden_dim=hidden_size,
+                             out_dim=out_dim,
+                             dropout_prob=dropout_prob,
+                             seed=seed,
+                             num_weights=num_weights).to(device)
 checkpoint = torch.load(configs['model_path'])
 curve_model.load_state_dict(checkpoint)
+
+curve_model.eval()
 
 # more configs
 curve_points = 61
@@ -121,6 +171,60 @@ elif configs['subspace_shape'] == 'simplex':
                 curve_parameters[5]
             ]
         ]))
+elif configs['subspace_shape'] == 'nn':
+    w.append(get_weights(curve_model, t=0, type='nn'))
+
+    isolated_model = NN(input_dim=data_dim,
+                        hidden_dim=hidden_size,
+                        out_dim=out_dim,
+                        dropout_prob=dropout_prob).to(device)
+    isolated_checkpoint = torch.load(
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_0.pt'
+    )
+    isolated_model.load_state_dict(isolated_checkpoint)
+
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel()
+            for p in list(isolated_model.parameters())
+        ]))
+
+    w.append(get_weights(curve_model, t=1, type='nn'))
+elif configs['subspace_shape'] == 'points':
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel()
+            for p in list(curve_model.parameters())
+        ]))
+
+    second_model = NN(input_dim=data_dim,
+                      hidden_dim=hidden_size,
+                      out_dim=out_dim,
+                      dropout_prob=dropout_prob).to(device)
+    second_checkpoint = torch.load(
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_1.pt'
+    )
+
+    second_model.load_state_dict(second_checkpoint)
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel()
+            for p in list(second_model.parameters())
+        ]))
+
+    third_model = NN(input_dim=data_dim,
+                     hidden_dim=hidden_size,
+                     out_dim=out_dim,
+                     dropout_prob=dropout_prob).to(device)
+    third_checkpoint = torch.load(
+        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/models/vanilla_mlp_2.pt'
+    )
+    third_model.load_state_dict(third_checkpoint)
+    w.append(
+        np.concatenate([
+            p.data.cpu().numpy().ravel()
+            for p in list(third_model.parameters())
+        ]))
 
 
 # set up for grid for plane plotting
@@ -129,6 +233,17 @@ def get_xy(point, origin, vector_x, vector_y):
         [np.dot(point - origin, vector_x),
          np.dot(point - origin, vector_y)])
 
+
+if configs['perturb']:
+    print('perturbing subspace endpoints')
+
+    if configs['subspace_shape'] == 'line':
+        w[0] += rng.normal(loc=0.0, scale=configs['noise'], size=w[0].shape)
+        w[2] += rng.normal(loc=0.0, scale=configs['noise'], size=w[0].shape)
+    elif configs['subspace_shape'] == 'simplex':
+        w[0] += rng.normal(loc=0.0, scale=configs['noise'], size=w[0].shape)
+        w[1] += rng.normal(loc=0.0, scale=configs['noise'], size=w[0].shape)
+        w[2] += rng.normal(loc=0.0, scale=configs['noise'], size=w[0].shape)
 
 print('Weight space dimensionality: %d' % w[0].shape[0])
 
@@ -143,26 +258,12 @@ v /= dy
 
 bend_coordinates = np.stack(get_xy(p, w[0], u, v) for p in w)
 
-
-def get_weights(model: nn.Module, t: int, t_2: int = 0, type: str = 'line'):
-    weights = []
-    for module in model.modules():
-        if isinstance(module, nn.Linear):
-            # add attribute for weight dimensionality and subspace dimensionality
-            if type == 'line':
-                setattr(module, f'alpha', t)
-            elif type == 'simplex':
-                setattr(module, f't1', t)
-                setattr(module, f't2', t_2)
-
-            weights.extend([module.get_weight(), module.bias.data])
-    return np.concatenate([w.detach().cpu().numpy().ravel() for w in weights])
-
-
-if configs['subspace_shape'] == 'line':
+if configs['subspace_shape'] == 'line' or configs['subspace_shape'] == 'nn':
     ts = np.linspace(0.0, 1.0, curve_points)
     curve_coordinates = []
     for t in np.linspace(0.0, 1.0, curve_points):
+        if configs['subspace_shape'] == 'nn':
+            t = torch.tensor([t], device=device).float()
         weights = get_weights(model=curve_model, t=t)
         curve_coordinates.append(get_xy(weights, w[0], u, v))
 
@@ -191,6 +292,9 @@ elif configs['subspace_shape'] == 'simplex':
         curve_coordinates.append(get_xy(weights, w[0], u, v))
 
     curve_coordinates = np.stack(curve_coordinates)
+elif configs['subspace_shape'] == 'points':
+    ts = np.linspace(0.0, 1.0, curve_points)
+    curve_coordinates = None
 
 G = grid_points
 alphas = np.linspace(0.0 - margin_left, 1.0 + margin_right, G)
@@ -307,9 +411,13 @@ for i, alpha in enumerate(tqdm(alphas)):
             table = table.split('\n')[2]
         print(table)
 
+file_name = f'{configs["subspace_shape"]}_plane.npz'
+if configs['perturb']:
+    file_name = f'{configs["noise"]}_perturbed_{file_name}'
+
 np.savez(os.path.join(
     '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
-    'simplex_plane.npz'),
+    file_name),
          ts=ts,
          bend_coordinates=bend_coordinates,
          curve_coordinates=curve_coordinates,

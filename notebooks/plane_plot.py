@@ -13,17 +13,22 @@ parser.add_argument('--dir',
                     default='/tmp/curve/',
                     metavar='DIR',
                     help='training directory (default: None)')
+parser.add_argument(
+    '--subspace-shape',
+    default='line',
+    # default='nn',
+    help='shape of subspace you want to visualize')
 
 args = parser.parse_args()
 
-file = np.load(os.path.join(args.dir, 'plane.npz'))
+file = np.load(os.path.join(args.dir, f'{args.subspace_shape}_plane.npz'))
 
-# matplotlib.rc('text', usetex=True)
-# plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
-# matplotlib.rc('font', **{
-#     'family': 'sans-serif',
-#     'sans-serif': ['DejaVu Sans']
-# })
+matplotlib.rc('text', usetex=True)
+plt.rc('text.latex', preamble=r'\usepackage{sansmath}')
+matplotlib.rc('font', **{
+    'family': 'sans-serif',
+    'sans-serif': ['DejaVu Sans']
+})
 
 matplotlib.rc('xtick.major', pad=12)
 matplotlib.rc('ytick.major', pad=12)
@@ -109,12 +114,14 @@ plt.scatter(bend_coordinates[1, 0],
             c='k',
             s=120,
             zorder=2)
-plt.plot(curve_coordinates[:, 0],
-         curve_coordinates[:, 1],
-         linewidth=4,
-         c='k',
-         label='$w(t)$',
-         zorder=4)
+if 'perturbed' not in args.subspace_shape:
+    pass
+    # plt.plot(curve_coordinates[:, 0],
+    #          curve_coordinates[:, 1],
+    #          linewidth=4,
+    #          c='k',
+    #          label='$w(t)$',
+    #          zorder=4)
 plt.plot(bend_coordinates[[0, 2], 0],
          bend_coordinates[[0, 2], 1],
          c='k',
@@ -123,11 +130,19 @@ plt.plot(bend_coordinates[[0, 2], 0],
          linewidth=3,
          zorder=2)
 
+if 'simplex' in args.subspace_shape:
+    # 122 = 2 * curve_points(61)
+    plt.fill(curve_coordinates[:122, 0],
+             curve_coordinates[:122, 1],
+             color='black',
+             alpha=0.3)
+
 plt.margins(0.0)
 plt.yticks(fontsize=18)
 plt.xticks(fontsize=18)
 colorbar.ax.tick_params(labelsize=18)
-plt.savefig(os.path.join(args.dir, 'train_loss_plane.pdf'),
+plt.savefig(os.path.join(args.dir,
+                         f'{args.subspace_shape}_train_loss_plane.pdf'),
             format='pdf',
             bbox_inches='tight')
 # plt.show()
@@ -155,12 +170,15 @@ plt.scatter(bend_coordinates[1, 0],
             c='k',
             s=120,
             zorder=2)
-plt.plot(curve_coordinates[:, 0],
-         curve_coordinates[:, 1],
-         linewidth=4,
-         c='k',
-         label='$w(t)$',
-         zorder=4)
+if True:
+    pass
+    # if 'perturbed' not in args.subspace_shape:
+    # plt.plot(curve_coordinates[:, 0],
+    #          curve_coordinates[:, 1],
+    #          linewidth=4,
+    #          c='k',
+    #          label='$w(t)$',
+    #          zorder=4)
 plt.plot(bend_coordinates[[0, 2], 0],
          bend_coordinates[[0, 2], 1],
          c='k',
@@ -169,11 +187,19 @@ plt.plot(bend_coordinates[[0, 2], 0],
          linewidth=3,
          zorder=2)
 
+if 'simplex' in args.subspace_shape:
+    # 122 = 2 * curve_points(61)
+    plt.fill(curve_coordinates[:122, 0],
+             curve_coordinates[:122, 1],
+             color='black',
+             alpha=0.3)
+
 plt.margins(0.0)
 plt.yticks(fontsize=18)
 plt.xticks(fontsize=18)
 colorbar.ax.tick_params(labelsize=18)
-plt.savefig(os.path.join(args.dir, 'test_error_plane.pdf'),
+plt.savefig(os.path.join(args.dir,
+                         f'{args.subspace_shape}_test_error_plane.pdf'),
             format='pdf',
             bbox_inches='tight')
 # plt.show()
