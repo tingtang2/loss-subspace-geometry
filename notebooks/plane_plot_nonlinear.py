@@ -19,11 +19,15 @@ parser.add_argument('--file',
                     help='training file')
 parser.add_argument('--scale',
                     type=str,
-                    default='std')
+                    default='log')
 
 parser.add_argument('--log_alpha',
                     type=float,
                     default=-5.0)
+
+parser.add_argument('--curve',
+                    type=bool,
+                    default=False)
 
 args = parser.parse_args()
 
@@ -119,34 +123,30 @@ contour, contourf, colorbar = plane(file['grid'],
                                     N=7,
                                     scale=args.scale)
 
-bend_coordinates = file['bend_coordinates']
-curve_coordinates = file['curve_coordinates']
+bend_coordinates = np.array(file['bend_coordinates'])
+print(bend_coordinates)
 
-# plt.scatter(bend_coordinates[[0, 2], 0],
-#             bend_coordinates[[0, 2], 1],
-#             marker='o',
-#             c='k',
-#             s=120,
-#             zorder=2)
-# plt.scatter(bend_coordinates[1, 0],
-#             bend_coordinates[1, 1],
-#             marker='D',
-#             c='k',
-#             s=120,
-#             zorder=2)
-# plt.plot(curve_coordinates[:, 0],
-#          curve_coordinates[:, 1],
-#          linewidth=4,
-#          c='k',
-#          label='$w(t)$',
-#          zorder=4)
-# plt.plot(bend_coordinates[[0, 2], 0],
-#          bend_coordinates[[0, 2], 1],
-#          c='k',
-#          linestyle='--',
-#          dashes=(3, 4),
-#          linewidth=3,
-#          zorder=2)
+plt.scatter(bend_coordinates[:2,0],
+            bend_coordinates[:2,1],
+            marker='o',
+            c='k',
+            s=120,
+            zorder=2)
+plt.scatter(bend_coordinates[2, 0],
+            bend_coordinates[2, 1],
+            marker='D',
+            c='k',
+            s=120,
+            zorder=2)
+if args.curve:
+    curve_coordinates = np.array(file['curve_coordinates'])
+    plt.plot(curve_coordinates[:, 0],
+            curve_coordinates[:, 1],
+            linewidth=4,
+            c='k',
+            label='$w(t)$',
+            zorder=4)
+
 
 plt.margins(0.0)
 plt.yticks(fontsize=18)
@@ -155,7 +155,6 @@ colorbar.ax.tick_params(labelsize=18)
 plt.savefig(os.path.join(savedir_root, args.file+'_logalpha_'+str(args.log_alpha)+'_train.pdf'),
             format='pdf',
             bbox_inches='tight')
-# plt.show()
 
 plt.figure(figsize=(12.4, 7))
 
@@ -167,36 +166,27 @@ contour, contourf, colorbar = plane(file['grid'],
                                     N=7,
                                     scale=args.scale)
 
-bend_coordinates = file['bend_coordinates']
-curve_coordinates = file['curve_coordinates']
 
-
-# plt.scatter(bend_coordinates[[0, 2], 0],
-#             bend_coordinates[[0, 2], 1],
-#             marker='o',
-#             c='k',
-#             s=120,
-#             zorder=2)
-# plt.scatter(bend_coordinates[1, 0],
-#             bend_coordinates[1, 1],
-#             marker='D',
-#             c='k',
-#             s=120,
-#             zorder=2)
-# plt.plot(curve_coordinates[:, 0],
-#          curve_coordinates[:, 1],
-#          linewidth=4,
-#          c='k',
-#          label='$w(t)$',
-#          zorder=4)
-# plt.plot(bend_coordinates[[0, 2], 0],
-#          bend_coordinates[[0, 2], 1],
-#          c='k',
-#          linestyle='--',
-#          dashes=(3, 4),
-#          linewidth=3,
-#          zorder=2)
-
+plt.scatter(bend_coordinates[:2,0],
+            bend_coordinates[:2,1],
+            marker='o',
+            c='k',
+            s=120,
+            zorder=2)
+plt.scatter(bend_coordinates[2, 0],
+            bend_coordinates[2, 1],
+            marker='D',
+            c='k',
+            s=120,
+            zorder=2)
+if args.curve:
+    plt.plot(curve_coordinates[:, 0],
+            curve_coordinates[:, 1],
+            linewidth=4,
+            c='k',
+            label='$w(t)$',
+            zorder=4)
+    
 plt.margins(0.0)
 plt.yticks(fontsize=18)
 plt.xticks(fontsize=18)

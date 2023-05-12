@@ -74,7 +74,7 @@ class SubspaceNonLinear(nn.Linear):
         return x
 
 
-# Nonlinear line subspace #
+# Nonlinear 1D subspace #
 class TwoParamNonLinear(SubspaceNonLinear):
 
     def __init__(self, *args, **kwargs):
@@ -96,11 +96,16 @@ class ParameterizedSubspace(nn.Module):
     def __init__(self, n_in, n_out):
         super().__init__()
         self.parameterization_linear_1 = nn.Linear(n_in, 10)
-        self.parameterization_linear_2 = nn.Linear(10, n_out)
+        self.parameterization_linear_2 = nn.Linear(10, 20)
+        self.parameterization_linear_3 = nn.Linear(20, 40)
+        self.parameterization_linear_4 = nn.Linear(40, n_out)
 
     def forward(self, x):
         x = self.parameterization_linear_1(x)
-        x = F.relu(x)
+        x = F.tanh(x)
         x = self.parameterization_linear_2(x)
-        x = F.relu(x)
+        x = F.tanh(x)
+        x = self.parameterization_linear_3(x)
+        x = F.tanh(x)
+        x = self.parameterization_linear_4(x)
         return x
