@@ -13,9 +13,10 @@ from sklearn.decomposition import PCA
 from torch import nn
 from torch.distributions.exponential import Exponential
 import seaborn as sns
+
 sns.set_theme()
 from tqdm import tqdm
-
+from mpl_toolkits import mplot3d
 from models.mlp import SubspaceNN
 from other_scripts.curvature import estimate
 
@@ -52,7 +53,8 @@ def calc_dT(data):
     return dT
 
 def calc_curvature(data):
-    """ Calculate the curvature of an arbitrarily high dimensional 1-d space """
+    """ Calculate the curvature of a 1-d space embedded in an arbitrarily
+     high dimensional ambient space """
     dT = calc_dT(data)
     ds = calc_ds(data)[1:]
     curvature = np.linalg.norm(dT/ds, axis=1)
@@ -67,7 +69,7 @@ def plot_curvature(alpha, curvature, savedir, filename):
             format='pdf',
             bbox_inches='tight')
 
-def pca_projection(sample_weights, savedir, filename):
+def pca_projection_2d(sample_weights, savedir, filename):
     pca = PCA(n_components=2)
     X_transform = pca.fit_transform(sample_weights)
     plt.figure(figsize=(12.4, 7))
@@ -75,6 +77,16 @@ def pca_projection(sample_weights, savedir, filename):
     plt.xlabel('First principal coordinates of subspace')
     plt.ylabel('Second principal coordinates of subspace')
     plt.savefig(os.path.join(savedir, filename+'_pca.pdf'),
+            format='pdf',
+            bbox_inches='tight')
+    
+def pca_projection_3d(sample_weights, savedir, filename):
+    pca = PCA(n_components=3)
+    X_transform = pca.fit_transform(sample_weights)
+    plt.figure(figsize=(12.4, 7))
+    ax = plt.axes(projection='3d')
+    ax.plot3D(X_transform[:,0], X_transform[:,1], X_transform[:,2], 'red')
+    plt.savefig(os.path.join(savedir, filename+'_3d_pca.pdf'),
             format='pdf',
             bbox_inches='tight')
 
@@ -117,11 +129,12 @@ def main() -> int:
     curvature = calc_curvature(sample_weights)
     plot_curvature(alpha, curvature, args.savedir, args.file)
 
-    # project onto 2 principal eigenvectors and plot
+    # project onto [2,3] principal eigenvectors and plot
     if (args.project):
-        pca_projection(sample_weights, args.savedir, args.file)
+        pca_projection_2d(sample_weights, args.savedir, args.file)
+        pca_projection_3d(sample_weights, args.savedir, args.file)
 
-    ## estimate dimensionality
+    # estimate dimensionality
     k_s = [3, 5, 8, 13]
     for k in tqdm(k_s):
         print(
