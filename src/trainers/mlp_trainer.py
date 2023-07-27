@@ -57,11 +57,22 @@ class MLPTrainer(BaseTrainer):
 
         if 'subspace' in self.name and 'nonlinear' in self.name:
             print("Fitting nonlinear subspace to loss landscape")
-            self.model = NonLinearSubspaceNN(input_dim=self.data_dim,
-                                             hidden_dim=self.hidden_size,
-                                             out_dim=self.out_dim,
-                                             dropout_prob=self.dropout_prob,
-                                             seed=self.seed).to(self.device)
+            self.model = NonLinearSubspaceNN(
+                input_dim=self.data_dim,
+                hidden_dim=self.hidden_size,
+                out_dim=self.out_dim,
+                dropout_prob=self.dropout_prob,
+                seed=self.seed
+            ).to(self.device)
+            # regularize by penalizing performance at linear interpolation 
+            # between endpoints of nonlinear subspace
+            self.interpolation_model = SubspaceNN(
+                input_dim=self.data_dim,
+                hidden_dim=self.hidden_size,
+                out_dim=self.out_dim,
+                dropout_prob=self.dropout_prob,
+                seed=self.seed,
+            ).to(self.device)
 
         elif 'subspace' in self.name:
             print("Fitting linear subspace to loss landscape")
@@ -302,17 +313,37 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         running_loss = 0.0
 
         for i, (x, y) in enumerate(loader):
+            # sample point in nonlinear subspace
             alpha = torch.rand(1, device=self.device)
-            for name, m in self.model.named_modules():
+            # sample interpolated point between endpoints of nonlinear subspace
+            alpha_interpolation = torch.rand(1, device=self.device)
+
+            # iterate through layers of both networks simultaneously
+            for subspace_modules, interpolation_modules in zip(self.model.named_modules(), self.interpolation_model.named_modules()):
+                name, m = subspace_modules
+                name_interpolation, m_interpolation = interpolation_modules
+
                 if isinstance(m, nn.Linear) and 'parameterization' not in name:
-                    # add attribute for weight dimensionality and subspace dimensionality
+                    assert isinstance(m_interpolation, nn.Linear) and 'parameterization' not in name_interpolation,  \
+                        "subspace and interpolation models must have same architecture"
                     setattr(m, f'alpha', alpha)
+                    setattr(m_interpolation, f'alpha', alpha_interpolation)
+                    print(m)
+                    print(m_interpolation)
+                    # fetch endpoints from subspace module
+                    vi = self.get_weight(m, 0)
+                    vj = self.get_weight(m, 1)
+
+                    # set endpoints for interpolation module
+                    m_interpolation.weight = torch.nn.Parameter(vi)
+                    setattr(m_interpolation, 'weight_1', torch.nn.Parameter(vj))
 
             self.optimizer.zero_grad()
 
             reshaped_x = x.reshape(x.size(0), 784)
 
             y_hat = self.model(reshaped_x.to(self.device))
+
             loss = self.criterion(y_hat, y.to(self.device))
 
             # regularization
@@ -329,6 +360,10 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
                     norm1 += vj.pow(2).sum()
 
             loss += self.beta * (num.pow(2) / (norm * norm1))
+
+            # calculate loss for interpolation model
+            y_hat_interp = self.interpolation_model(reshaped_x.to(self.device))
+            loss += -1 * self.criterion(y_hat_interp, y.to(self.device))
 
             loss.backward()
             running_loss += loss.item()
