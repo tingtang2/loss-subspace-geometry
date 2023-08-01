@@ -72,6 +72,7 @@ class MLPTrainer(BaseTrainer):
                 out_dim=self.out_dim,
                 dropout_prob=self.dropout_prob,
                 seed=self.seed,
+                num_weights=2
             ).to(self.device)
 
         elif 'subspace' in self.name:
@@ -318,25 +319,30 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
             # sample interpolated point between endpoints of nonlinear subspace
             alpha_interpolation = torch.rand(1, device=self.device)
 
-            # iterate through layers of both networks simultaneously
-            for subspace_modules, interpolation_modules in zip(self.model.named_modules(), self.interpolation_model.named_modules()):
-                name, m = subspace_modules
-                name_interpolation, m_interpolation = interpolation_modules
 
+            # iterate through layers of nonlinear subspace and store endpoints
+            endpoints = []
+            for name, m in self.model.named_modules():
                 if isinstance(m, nn.Linear) and 'parameterization' not in name:
-                    assert isinstance(m_interpolation, nn.Linear) and 'parameterization' not in name_interpolation,  \
-                        "subspace and interpolation models must have same architecture"
+                    # add attribute for weight dimensionality and subspace dimensionality
                     setattr(m, f'alpha', alpha)
-                    setattr(m_interpolation, f'alpha', alpha_interpolation)
-                    print(m)
-                    print(m_interpolation)
-                    # fetch endpoints from subspace module
-                    vi = self.get_weight(m, 0)
-                    vj = self.get_weight(m, 1)
+                    vi = self.get_weight(m, 0).reshape(m.weight.size())
+                    vj = self.get_weight(m, 1).reshape(m.weight.size())
+                    endpoints.append((vi, vj))
 
+            # iterate through layers of linear subspace and set endpoints
+            for name, m in self.interpolation_model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
+                    # add attribute for weight dimensionality and subspace dimensionality
+                    setattr(m, f'alpha', alpha_interpolation)
+                    # fetch endpoints from nonlinear subspace
+                    vi, vj = endpoints.pop(0)
+                    print(vi)
                     # set endpoints for interpolation module
-                    m_interpolation.weight = torch.nn.Parameter(vi)
-                    setattr(m_interpolation, 'weight_1', torch.nn.Parameter(vj))
+                    m.weight = vi
+                    print(m.weight)
+                    print()
+                    setattr(m, 'weight_1', torch.nn.Parameter(vj))
 
             self.optimizer.zero_grad()
 
@@ -363,7 +369,12 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
 
             # calculate loss for interpolation model
             y_hat_interp = self.interpolation_model(reshaped_x.to(self.device))
-            loss += -1 * self.criterion(y_hat_interp, y.to(self.device))
+            interpolated_loss = self.criterion(y_hat_interp, y.to(self.device))
+
+            print(interpolated_loss.item())
+            print()
+
+            loss += -self.gamma * interpolated_loss
 
             loss.backward()
             running_loss += loss.item()
@@ -373,6 +384,7 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         return running_loss / len(loader.dataset)
 
     def eval(self, loader: DataLoader):
+        # evaluation stage doesn't include interpolation loss
         running_losses = [0.0, 0.0, 0.0]
         alphas = [0.0, 0.5, 1.0]
         nums_right = [0, 0, 0]
@@ -431,7 +443,7 @@ class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self.name = f'nonlinear_subspace_vanilla_mlp_seed_{self.seed}_beta_{self.beta}_tanh'
+        self.name = f'nonlinear_subspace_vanilla_mlp_seed_{self.seed}_beta_{self.beta}_gamma_{self.gamma}'
         self.early_stopping_threshold = 10
 
         self.data_dim = 784

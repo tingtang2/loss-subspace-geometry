@@ -44,14 +44,14 @@ def main() -> int:
     parser.add_argument(
         '--save_dir',
         default=
-        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
-        # '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
+        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/loss-subspace-geometry-save/',
+        '/home/tristan/loss-subspace-geometry-project/loss-subspace-geometry-save/',
         help='path to saved model files')
     parser.add_argument(
         '--data_dir',
         default=
-        '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
-        # '/home/tristan/loss-subspace-geometry-project/data/',
+        # '/gpfs/commons/home/tchen/loss_sub_space_geometry_project/data/',
+        '/home/tristan/loss-subspace-geometry-project/data/',
         help='path to data files')
     parser.add_argument('--optimizer',
                         default='adamW',
@@ -82,6 +82,11 @@ def main() -> int:
         'only collect validation metrics for the midpoint of the line (for speed)'
     )
     parser.add_argument('--beta',
+                        default=1.0,
+                        type=float,
+                        help='constant for learning subspaces')
+
+    parser.add_argument('--gamma',
                         default=1.0,
                         type=float,
                         help='constant for learning subspaces')
