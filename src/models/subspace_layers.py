@@ -90,6 +90,40 @@ class LinesNN(TwoParamNonLinear):
         return w
 
 
+# Nonlinear 1D subspace with interpolation regularization
+
+class SubspaceNonLinearInterpReg(nn.Linear):
+
+    def forward(self, x):
+        w = self.get_weight().reshape(self.weight.size())
+        x = F.linear(input=x, weight=w, bias=self.bias)
+        return x
+
+
+# Nonlinear 1D subspace #
+class TwoParamNonLinearInterpReg(SubspaceNonLinear):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.line = ParameterizedSubspace(n_in=1,
+                                          n_out=torch.numel(self.weight))
+        self.valid_modes = ['lineNN', 'interp']
+        self.mode = 'lineNN'
+        self.device = kwargs.pop('device')
+
+class LinesNNInterpReg(TwoParamNonLinearInterpReg):
+
+    def get_weight(self):
+        assert self.mode in self.valid_modes, "Invalid mode specified"
+        if self.mode == 'lineNN':
+            w = self.line.forward(self.alpha)
+        else:
+            ep0 = self.line.forward(torch.tensor([0.0]).to(self.device))
+            ep1 = self.line.forward(torch.tensor([1.0]).to(self.device))
+            w = self.gamma * ep0 + (1 - self.gamma) * ep1
+        return w
+
+
 # Neural net parameterization for the loss subspace of arbitrary dimension
 class ParameterizedSubspace(nn.Module):
 
@@ -109,3 +143,4 @@ class ParameterizedSubspace(nn.Module):
         x = F.tanh(x)
         x = self.parameterization_linear_4(x)
         return x
+    

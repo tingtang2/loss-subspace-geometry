@@ -1,4 +1,4 @@
-from models.subspace_layers import LinesLinear, LinesNN, SimplexLinear
+from models.subspace_layers import LinesLinear, LinesNN, SimplexLinear, LinesNNInterpReg
 from torch import nn
 from torch.nn import functional as F
 
@@ -132,3 +132,37 @@ class NonLinearSubspaceNN(nn.Module):
 
 
 ## Non-Linear subspace ##
+
+
+## Non-Linear subspace with linear interpolation regularization ##
+
+class NonLinearSubspaceMLPLinearInterpReg(nn.Module):
+
+    def __init__(self, n_in, n_out, seed, device, dropout_prob=0.15):
+        super().__init__()
+
+        self.linear = LinesNNInterpReg(n_in, n_out, device=device)
+        self.dropout = nn.Dropout(p=dropout_prob)
+
+    def forward(self, x):
+        x = self.linear(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        return x
+    
+class NonLinearSubspaceNNLinearInterpReg(nn.Module):
+
+    def __init__(self, input_dim, hidden_dim, out_dim, dropout_prob,
+                 seed, device) -> None:
+        super().__init__()
+
+        self.mlp = NonLinearSubspaceMLPLinearInterpReg(n_in=input_dim,
+                                        n_out=hidden_dim,
+                                        dropout_prob=dropout_prob,
+                                        seed=seed,
+                                        device=device)
+        self.out = LinesNNInterpReg(in_features=hidden_dim, out_features=out_dim, device=device)
+
+    def forward(self, x):
+        x = self.mlp(x)
+        return self.out(x)

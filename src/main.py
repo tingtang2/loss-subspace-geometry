@@ -86,8 +86,8 @@ def main() -> int:
                         type=float,
                         help='constant for learning subspaces')
 
-    parser.add_argument('--gamma',
-                        default=1.0,
+    parser.add_argument('--phi',
+                        default=0.75,
                         type=float,
                         help='constant for learning subspaces')
 

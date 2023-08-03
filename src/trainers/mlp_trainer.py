@@ -4,7 +4,7 @@ import random
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from models.mlp import NN, NonLinearSubspaceNN, SubspaceNN
+from models.mlp import NN, NonLinearSubspaceNN, SubspaceNN, NonLinearSubspaceNNLinearInterpReg
 from torch import nn
 from torch.distributions.exponential import Exponential
 from torch.utils.data import DataLoader
@@ -57,22 +57,13 @@ class MLPTrainer(BaseTrainer):
 
         if 'subspace' in self.name and 'nonlinear' in self.name:
             print("Fitting nonlinear subspace to loss landscape")
-            self.model = NonLinearSubspaceNN(
-                input_dim=self.data_dim,
-                hidden_dim=self.hidden_size,
-                out_dim=self.out_dim,
-                dropout_prob=self.dropout_prob,
-                seed=self.seed
-            ).to(self.device)
-            # regularize by penalizing performance at linear interpolation 
-            # between endpoints of nonlinear subspace
-            self.interpolation_model = SubspaceNN(
+            self.model = NonLinearSubspaceNNLinearInterpReg(
                 input_dim=self.data_dim,
                 hidden_dim=self.hidden_size,
                 out_dim=self.out_dim,
                 dropout_prob=self.dropout_prob,
                 seed=self.seed,
-                num_weights=2
+                device=self.device
             ).to(self.device)
 
         elif 'subspace' in self.name:
@@ -130,6 +121,7 @@ class MLPTrainer(BaseTrainer):
                         f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss alpha 0: {loss[0]:.3f} val loss alpha 0.5: {loss[1]:.3f} val loss alpha 1: {loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} '
                         f'val acc 0: {accuracy[0]:.3f}, val acc 0.5: {accuracy[1]:.3f}, val acc 1: {accuracy[-1]:.3f}, patience: {early_stopping_counter} cos sim: {cos_sim:.3E}, l2: {l2:.3f}'
                     )
+                    
 
                 loss = loss[idx]
             else:
@@ -314,43 +306,38 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
         running_loss = 0.0
 
         for i, (x, y) in enumerate(loader):
-            # sample point in nonlinear subspace
-            alpha = torch.rand(1, device=self.device)
-            # sample interpolated point between endpoints of nonlinear subspace
-            alpha_interpolation = torch.rand(1, device=self.device)
 
-
-            # iterate through layers of nonlinear subspace and store endpoints
-            endpoints = []
+            # calculate interpolated loss
+            gamma = torch.rand(1, device=self.device)
             for name, m in self.model.named_modules():
                 if isinstance(m, nn.Linear) and 'parameterization' not in name:
-                    # add attribute for weight dimensionality and subspace dimensionality
-                    setattr(m, f'alpha', alpha)
-                    vi = self.get_weight(m, 0).reshape(m.weight.size())
-                    vj = self.get_weight(m, 1).reshape(m.weight.size())
-                    endpoints.append((vi, vj))
+                    # set gamma (interpolation constant)
+                    setattr(m, f'gamma', gamma)
+                    # set mode to use interpolated weights
+                    setattr(m, f'mode', 'interp')
 
-            # iterate through layers of linear subspace and set endpoints
-            for name, m in self.interpolation_model.named_modules():
-                if isinstance(m, nn.Linear) and 'parameterization' not in name:
-                    # add attribute for weight dimensionality and subspace dimensionality
-                    setattr(m, f'alpha', alpha_interpolation)
-                    # fetch endpoints from nonlinear subspace
-                    vi, vj = endpoints.pop(0)
-                    print(vi)
-                    # set endpoints for interpolation module
-                    m.weight = vi
-                    print(m.weight)
-                    print()
-                    setattr(m, 'weight_1', torch.nn.Parameter(vj))
 
             self.optimizer.zero_grad()
 
             reshaped_x = x.reshape(x.size(0), 784)
 
-            y_hat = self.model(reshaped_x.to(self.device))
+            y_hat_interp = self.model(reshaped_x.to(self.device))
+            interpolated_loss = self.criterion(y_hat_interp, y.to(self.device))
 
-            loss = self.criterion(y_hat, y.to(self.device))
+            loss = -self.phi * interpolated_loss
+
+            # calculate subspace loss
+            alpha = torch.rand(1, device=self.device)
+            for name, m in self.model.named_modules():
+                if isinstance(m, nn.Linear) and 'parameterization' not in name:
+                    # add attribute for weight dimensionality and subspace dimensionality
+                    setattr(m, f'alpha', alpha)
+                    # set mode to use nonlinear subspace weights
+                    setattr(m, f'mode', 'lineNN')
+
+            y_hat = self.model(reshaped_x.to(self.device))
+            subspace_loss = self.criterion(y_hat, y.to(self.device))
+            loss += subspace_loss
 
             # regularization
             num = 0.0
@@ -366,15 +353,6 @@ class NonLinearSubspaceMLPTrainer(MLPTrainer):
                     norm1 += vj.pow(2).sum()
 
             loss += self.beta * (num.pow(2) / (norm * norm1))
-
-            # calculate loss for interpolation model
-            y_hat_interp = self.interpolation_model(reshaped_x.to(self.device))
-            interpolated_loss = self.criterion(y_hat_interp, y.to(self.device))
-
-            print(interpolated_loss.item())
-            print()
-
-            loss += -self.gamma * interpolated_loss
 
             loss.backward()
             running_loss += loss.item()
@@ -443,7 +421,7 @@ class FashionMNISTNonLinearSubspaceMLPTrainer(NonLinearSubspaceMLPTrainer):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        self.name = f'nonlinear_subspace_vanilla_mlp_seed_{self.seed}_beta_{self.beta}_gamma_{self.gamma}'
+        self.name = f'nonlinear_subspace_vanilla_mlp_seed_{self.seed}_beta_{self.beta}_phi_{self.phi}'
         self.early_stopping_threshold = 10
 
         self.data_dim = 784
